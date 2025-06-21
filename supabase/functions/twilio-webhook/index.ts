@@ -9,6 +9,7 @@ const corsHeaders = {
 interface CallSession {
   conversationState?: any;
   startTime?: string;
+  language?: string;
 }
 
 // In-memory session storage (in production, use Redis or database)
@@ -32,6 +33,7 @@ Deno.serve(async (req: Request) => {
     const speechResult = formData.get('SpeechResult') as string;
     const confidence = formData.get('Confidence') as string;
     const callStatus = formData.get('CallStatus') as string;
+    const recordingUrl = formData.get('RecordingUrl') as string;
 
     console.log('Twilio webhook received:', {
       callSid,
@@ -39,7 +41,8 @@ Deno.serve(async (req: Request) => {
       to,
       speechResult,
       confidence,
-      callStatus
+      callStatus,
+      recordingUrl
     });
 
     // Handle call status updates
@@ -52,6 +55,7 @@ Deno.serve(async (req: Request) => {
     let session = callSessions.get(callSid) || {};
     if (!session.startTime) {
       session.startTime = new Date().toISOString();
+      session.language = 'en'; // Default language, can be detected or set per clinic
       callSessions.set(callSid, session);
     }
 
@@ -72,6 +76,47 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    let userInput = speechResult || '';
+
+    // If we have a recording URL but no speech result, transcribe using Whisper
+    if (recordingUrl && !speechResult) {
+      try {
+        // Download the recording
+        const recordingResponse = await fetch(recordingUrl);
+        if (recordingResponse.ok) {
+          const audioBuffer = await recordingResponse.arrayBuffer();
+          const base64Audio = btoa(String.fromCharCode(...new Uint8Array(audioBuffer)));
+
+          // Call our Whisper transcription function
+          const transcriptionResponse = await fetch(
+            `${Deno.env.get('SUPABASE_URL')}/functions/v1/whisper-transcribe`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              },
+              body: JSON.stringify({
+                audioData: base64Audio,
+                language: session.language,
+                callSid: callSid,
+                clinicId: clinic.id
+              }),
+            }
+          );
+
+          if (transcriptionResponse.ok) {
+            const transcriptionResult = await transcriptionResponse.json();
+            userInput = transcriptionResult.text;
+            console.log('Whisper transcription:', userInput);
+          }
+        }
+      } catch (transcriptionError) {
+        console.error('Transcription error:', transcriptionError);
+        // Fall back to Twilio's speech recognition or continue without transcription
+      }
+    }
+
     // Process the speech input with the voice agent
     const voiceAgentResponse = await fetch(
       `${Deno.env.get('SUPABASE_URL')}/functions/v1/voice-agent`,
@@ -82,12 +127,13 @@ Deno.serve(async (req: Request) => {
           'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
         },
         body: JSON.stringify({
-          userInput: speechResult || '',
+          userInput: userInput,
           context: {
             clinicId: clinic.id,
             callerPhone: from,
             callSid: callSid,
-            conversationState: session.conversationState
+            conversationState: session.conversationState,
+            language: session.language
           },
           config: {
             elevenLabsApiKey: Deno.env.get('ELEVENLABS_API_KEY'),
@@ -115,12 +161,13 @@ Deno.serve(async (req: Request) => {
       callSessions.set(callSid, session);
     }
 
-    // Generate TwiML response
+    // Generate TwiML response with enhanced speech gathering
     const twimlResponse = generateTwiML(
       agentResponse.text,
       agentResponse.shouldHangup,
       agentResponse.shouldTransfer,
-      agentResponse.nextAction
+      agentResponse.nextAction,
+      session.language
     );
 
     console.log('Generated TwiML:', twimlResponse);
@@ -148,29 +195,38 @@ function generateTwiML(
   message: string,
   shouldHangup: boolean = false,
   shouldTransfer: boolean = false,
-  nextAction: string = 'gather_speech'
+  nextAction: string = 'gather_speech',
+  language: string = 'en'
 ): string {
   let twiml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n`;
   
+  // Determine voice based on language
+  const voice = language === 'ml' ? 'Polly.Aditi' : 'alice';
+  
   // Add the main message
-  twiml += `  <Say voice="alice" rate="medium">${escapeXml(message)}</Say>\n`;
+  twiml += `  <Say voice="${voice}" rate="medium">${escapeXml(message)}</Say>\n`;
   
   if (shouldHangup) {
     twiml += `  <Hangup/>\n`;
   } else if (shouldTransfer) {
     // In production, replace with actual clinic phone number
     const transferNumber = Deno.env.get('CLINIC_TRANSFER_NUMBER') || '+1-555-CLINIC';
-    twiml += `  <Say voice="alice">Please hold while I transfer you.</Say>\n`;
+    twiml += `  <Say voice="${voice}">Please hold while I transfer you.</Say>\n`;
     twiml += `  <Dial timeout="30">\n`;
     twiml += `    <Number>${transferNumber}</Number>\n`;
     twiml += `  </Dial>\n`;
-    twiml += `  <Say voice="alice">I'm sorry, but our staff is not available right now. Please try calling back later.</Say>\n`;
+    twiml += `  <Say voice="${voice}">I'm sorry, but our staff is not available right now. Please try calling back later.</Say>\n`;
     twiml += `  <Hangup/>\n`;
   } else if (nextAction === 'gather_speech') {
-    twiml += `  <Gather input="speech" timeout="10" speechTimeout="3" action="${Deno.env.get('SUPABASE_URL')}/functions/v1/twilio-webhook" method="POST" enhanced="true">\n`;
-    twiml += `    <Say voice="alice">Please speak your response.</Say>\n`;
+    // Enhanced speech gathering with recording for Whisper fallback
+    twiml += `  <Gather input="speech" timeout="10" speechTimeout="3" action="${Deno.env.get('SUPABASE_URL')}/functions/v1/twilio-webhook" method="POST" enhanced="true" language="${language}">\n`;
+    twiml += `    <Say voice="${voice}">Please speak your response.</Say>\n`;
     twiml += `  </Gather>\n`;
-    twiml += `  <Say voice="alice">I didn't hear anything. Let me transfer you to our staff.</Say>\n`;
+    
+    // Fallback: Record for Whisper transcription if speech recognition fails
+    twiml += `  <Record timeout="10" maxLength="30" action="${Deno.env.get('SUPABASE_URL')}/functions/v1/twilio-webhook" method="POST" transcribe="false" />\n`;
+    
+    twiml += `  <Say voice="${voice}">I didn't hear anything. Let me transfer you to our staff.</Say>\n`;
     twiml += `  <Dial timeout="30">\n`;
     twiml += `    <Number>${Deno.env.get('CLINIC_TRANSFER_NUMBER') || '+1-555-CLINIC'}</Number>\n`;
     twiml += `  </Dial>\n`;

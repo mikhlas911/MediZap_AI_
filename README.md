@@ -4,7 +4,9 @@ A comprehensive clinic management system with AI-powered voice agent for automat
 
 ## 🚀 Features
 
-- **MediZap AI Voice Agent**: Natural conversation flow using ElevenLabs for speech synthesis and Twilio for telephony
+- **MediZap AI Voice Agent**: Natural conversation flow using ElevenLabs for speech synthesis and OpenAI Whisper for transcription
+- **Advanced Transcription**: Dual-layer speech recognition with Twilio's built-in recognition and OpenAI Whisper fallback
+- **Multi-language Support**: Supports English and regional languages (e.g., Malayalam) for voice interactions
 - **Real-time Appointments**: Instant booking and live dashboard updates using Supabase
 - **Clinic Management**: Manage departments, doctors, schedules, and availability
 - **Call Center Analytics**: Monitor AI agent performance and conversation logs
@@ -15,7 +17,7 @@ A comprehensive clinic management system with AI-powered voice agent for automat
 
 - **Frontend**: React 18, TypeScript, Tailwind CSS
 - **Backend**: Supabase (PostgreSQL), Edge Functions
-- **Voice AI**: ElevenLabs API for speech synthesis
+- **Voice AI**: ElevenLabs API for speech synthesis, OpenAI Whisper for transcription
 - **Telephony**: Twilio Voice API for call handling
 - **Real-time**: Supabase real-time subscriptions
 - **Deployment**: Vite build system, ready for production
@@ -55,6 +57,9 @@ TWILIO_PHONE_NUMBER=your_twilio_phone_number
 ELEVENLABS_API_KEY=your_elevenlabs_api_key
 ELEVENLABS_VOICE_ID=your_voice_id
 
+# OpenAI Configuration (for Whisper transcription)
+OPENAI_API_KEY=your_openai_api_key
+
 # Application Configuration
 VITE_APP_URL=http://localhost:5173
 CLINIC_TRANSFER_NUMBER=+1-555-CLINIC
@@ -77,15 +82,55 @@ supabase link --project-ref your-project-ref
 # Deploy edge functions
 supabase functions deploy voice-agent
 supabase functions deploy twilio-webhook
+supabase functions deploy whisper-transcribe
+
+# Set environment variables for edge functions
+supabase secrets set OPENAI_API_KEY=your_openai_api_key
+supabase secrets set ELEVENLABS_API_KEY=your_elevenlabs_api_key
+supabase secrets set ELEVENLABS_VOICE_ID=your_voice_id
+supabase secrets set CLINIC_TRANSFER_NUMBER=your_clinic_phone_number
 ```
 
-### 5. Run the Application
+### 5. Configure Twilio Webhook
+
+1. Log in to your Twilio Console
+2. Navigate to Phone Numbers → Manage → Active numbers
+3. Select your phone number
+4. In the "Voice & Fax" section, set:
+   - **A call comes in**: Webhook
+   - **URL**: `https://your-project.supabase.co/functions/v1/twilio-webhook`
+   - **HTTP Method**: POST
+5. Save the configuration
+
+### 6. Run the Application
 
 ```bash
 npm run dev
 ```
 
 ## 📞 MediZap AI Voice Agent Setup
+
+### Enhanced Transcription Flow
+
+The system now uses a dual-layer approach for speech recognition:
+
+1. **Primary**: Twilio's built-in speech recognition for real-time processing
+2. **Fallback**: OpenAI Whisper for higher accuracy when Twilio recognition fails
+3. **Multi-language**: Supports English and regional languages like Malayalam
+
+### Call Flow Architecture
+
+```
+Caller speaks → Twilio receives audio
+    ↓
+Twilio Speech Recognition (Primary)
+    ↓
+If recognition fails → Record audio → Whisper Transcription (Fallback)
+    ↓
+Voice Agent Processing → Database Operations
+    ↓
+ElevenLabs TTS → Response to caller
+```
 
 ### ElevenLabs Configuration
 
@@ -95,20 +140,18 @@ npm run dev
 4. Copy the Voice ID from your selected voice
 5. Add both to your `.env` file
 
-### Twilio Configuration
+### OpenAI Whisper Configuration
 
-1. Create a Twilio account at [twilio.com](https://twilio.com)
-2. Purchase a phone number with voice capabilities
-3. Configure webhook URL in Twilio Console:
-   ```
-   https://your-project.supabase.co/functions/v1/twilio-webhook
-   ```
-4. Set webhook method to `POST`
-5. Add your Twilio credentials to environment variables
+1. Create an OpenAI account at [openai.com](https://openai.com)
+2. Generate an API key from the API section
+3. Add the key to your environment variables
+4. The system will automatically use Whisper for transcription fallback
 
 ### Voice Agent Features
 
 - **Natural Conversation**: Handles complex appointment booking flows
+- **Enhanced Transcription**: Dual-layer speech recognition for maximum accuracy
+- **Multi-language Support**: Configurable language detection and processing
 - **Department Selection**: Automatically lists available departments
 - **Doctor Availability**: Real-time checking of doctor schedules
 - **Date/Time Parsing**: Understands various date and time formats
@@ -137,20 +180,21 @@ POST /functions/v1/voice-agent
 
 Processes voice input and returns AI-generated responses for appointment booking.
 
+### Whisper Transcription Endpoint
+
+```
+POST /functions/v1/whisper-transcribe
+```
+
+Transcribes audio using OpenAI Whisper for enhanced accuracy.
+
 **Request Body:**
 ```json
 {
-  "userInput": "I'd like to book an appointment",
-  "context": {
-    "clinicId": "uuid",
-    "callerPhone": "+1234567890",
-    "callSid": "twilio-call-id",
-    "conversationState": {}
-  },
-  "config": {
-    "elevenLabsApiKey": "your-key",
-    "elevenLabsVoiceId": "voice-id"
-  }
+  "audioData": "base64_encoded_audio",
+  "language": "en",
+  "callSid": "twilio-call-id",
+  "clinicId": "uuid"
 }
 ```
 
@@ -172,6 +216,8 @@ Handles incoming Twilio voice calls and integrates with the MediZap AI voice age
 
 ### MediZap AI Voice Agent Capabilities
 - Natural conversation flow with context awareness
+- Enhanced speech recognition with Whisper fallback
+- Multi-language support (English, Malayalam, etc.)
 - Department and doctor selection with real-time availability
 - Intelligent date/time parsing (supports "tomorrow", "next Monday", etc.)
 - Appointment booking with confirmation
@@ -183,6 +229,7 @@ Handles incoming Twilio voice calls and integrates with the MediZap AI voice age
 - Conversation transcripts and logs
 - Performance metrics (success rate, average duration)
 - Call volume analytics
+- Transcription accuracy tracking
 
 ### Appointment Management
 - Automatic conflict detection
@@ -248,12 +295,14 @@ Deploy the `dist` folder to:
 - Average call duration
 - Patient satisfaction metrics
 - Peak call times and patterns
+- Transcription accuracy rates
 
 ### Performance Metrics
 - AI response time
 - Conversation completion rate
 - Transfer to human rate
 - System uptime and reliability
+- Speech recognition accuracy
 
 ## 🤝 Contributing
 
@@ -279,7 +328,8 @@ For support and questions:
 
 ## 🎯 Roadmap
 
-- [ ] Multi-language support for voice agent
+- [x] Multi-language support for voice agent
+- [x] Enhanced speech recognition with Whisper
 - [ ] SMS appointment reminders
 - [ ] Video consultation integration
 - [ ] Advanced analytics dashboard
@@ -295,6 +345,8 @@ Built with ❤️ for modern healthcare management powered by **MediZap AI**
 ### 🌟 Key Differentiators
 
 - **Production-Ready**: Enterprise-grade architecture and security
+- **Enhanced Transcription**: Dual-layer speech recognition for maximum accuracy
+- **Multi-language**: Support for regional languages and dialects
 - **Real-Time**: Instant updates across all components
 - **Scalable**: Built to handle high call volumes
 - **Intelligent**: Advanced AI with natural conversation capabilities
