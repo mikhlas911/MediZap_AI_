@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertCircle, UserPlus } from 'lucide-react';
 import { useAuth } from './AuthProvider';
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
+  onSwitchToGuestSignup: () => void;
   onSwitchToForgotPassword: () => void;
 }
 
-export function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }: LoginFormProps) {
+export function LoginForm({ onSwitchToRegister, onSwitchToGuestSignup, onSwitchToForgotPassword }: LoginFormProps) {
   const { signIn } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
@@ -65,7 +66,7 @@ export function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
           />
           <h1 className="text-3xl font-bold text-slate-800">MediZap AI</h1>
         </div>
-        <p className="text-slate-600">Sign in to your clinic dashboard</p>
+        <p className="text-slate-600">Sign in to your account</p>
       </div>
 
       <div className="bg-slate-50 rounded-xl shadow-lg p-8 border border-slate-200">
@@ -153,7 +154,7 @@ export function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
             )}
           </button>
 
-          <div className="text-center space-y-2">
+          <div className="text-center space-y-3">
             <button
               type="button"
               onClick={onSwitchToForgotPassword}
@@ -161,15 +162,31 @@ export function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
             >
               Forgot your password?
             </button>
-            <div className="text-sm text-slate-600">
-              Don't have an account?{' '}
-              <button
-                type="button"
-                onClick={onSwitchToRegister}
-                className="text-sky-600 hover:text-sky-700 font-medium transition-colors"
-              >
-                Register your clinic
-              </button>
+            
+            <div className="border-t border-slate-200 pt-3">
+              <div className="text-sm text-slate-600 space-y-2">
+                <div>
+                  <span>Healthcare provider? </span>
+                  <button
+                    type="button"
+                    onClick={onSwitchToRegister}
+                    className="text-sky-600 hover:text-sky-700 font-medium transition-colors"
+                  >
+                    Register your clinic
+                  </button>
+                </div>
+                <div>
+                  <span>Patient? </span>
+                  <button
+                    type="button"
+                    onClick={onSwitchToGuestSignup}
+                    className="text-emerald-600 hover:text-emerald-700 font-medium transition-colors inline-flex items-center"
+                  >
+                    <UserPlus className="h-4 w-4 mr-1" />
+                    Create patient account
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </form>

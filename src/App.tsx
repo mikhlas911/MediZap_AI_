@@ -8,6 +8,8 @@ import { Dashboard } from './components/Dashboard';
 import { AppointmentsPage } from './pages/AppointmentsPage';
 import { DoctorsPage } from './pages/DoctorsPage';
 import { CallCenterPage } from './pages/CallCenterPage';
+import { WalkInsPage } from './pages/WalkInsPage';
+import { PublicWalkInForm } from './components/PublicWalkInForm';
 import { useClinicContext } from './hooks/useClinicContext';
 import { supabase } from './lib/supabase';
 
@@ -225,10 +227,15 @@ function AppContent() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public walk-in registration route */}
+        <Route path="/walkin/:clinicSlug" element={<PublicWalkInForm />} />
+        
+        {/* Protected routes */}
         <Route path="/" element={<Layout><Dashboard /></Layout>} />
         <Route path="/appointments" element={<Layout><AppointmentsPage /></Layout>} />
         <Route path="/doctors" element={<Layout><DoctorsPage /></Layout>} />
         <Route path="/calls" element={<Layout><CallCenterPage /></Layout>} />
+        <Route path="/walkins" element={<Layout><WalkInsPage /></Layout>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

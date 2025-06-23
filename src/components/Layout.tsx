@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Phone, Calendar, Users, BarChart3, LogOut, Settings } from 'lucide-react';
+import { Phone, Calendar, Users, BarChart3, LogOut, Settings, UserCheck } from 'lucide-react';
 import { useAuth } from './auth/AuthProvider';
 import { useClinicContext } from '../hooks/useClinicContext';
 
@@ -17,6 +17,7 @@ export function Layout({ children }: LayoutProps) {
     { name: 'Dashboard', href: '/', icon: BarChart3, current: location.pathname === '/' },
     { name: 'Appointments', href: '/appointments', icon: Calendar, current: location.pathname === '/appointments' },
     { name: 'Doctors', href: '/doctors', icon: Users, current: location.pathname === '/doctors' },
+    { name: 'Walk-Ins', href: '/walkins', icon: UserCheck, current: location.pathname === '/walkins' },
     { name: 'Call Center', href: '/calls', icon: Phone, current: location.pathname === '/calls' },
   ];
 

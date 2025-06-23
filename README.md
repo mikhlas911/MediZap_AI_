@@ -1,9 +1,10 @@
 # MediZap AI - Clinic Voice Agent System
 
-A comprehensive clinic management system with AI-powered voice agent for automated appointment booking via phone calls.
+A comprehensive clinic management system with AI-powered voice agent for automated appointment booking via phone calls and QR-based walk-in registration.
 
 ## 🚀 Features
 
+### Core Features
 - **MediZap AI Voice Agent**: Natural conversation flow using ElevenLabs for speech synthesis and OpenAI Whisper for transcription
 - **Advanced Transcription**: Dual-layer speech recognition with Twilio's built-in recognition and OpenAI Whisper fallback
 - **Multi-language Support**: Supports English and regional languages (e.g., Malayalam) for voice interactions
@@ -11,7 +12,14 @@ A comprehensive clinic management system with AI-powered voice agent for automat
 - **Clinic Management**: Manage departments, doctors, schedules, and availability
 - **Call Center Analytics**: Monitor AI agent performance and conversation logs
 - **Beautiful Dashboard**: Modern, responsive interface with real-time updates
-- **Secure & Scalable**: Built with Supabase, proper authentication, and secure API handling
+
+### NEW: QR-Based Walk-In Registration
+- **Unique QR Codes**: Each clinic gets a unique QR code for walk-in registration
+- **Human-Readable URLs**: Clean URLs like `/walkin/clinic-name` for easy access
+- **Mobile-Friendly Forms**: Responsive registration forms optimized for mobile devices
+- **Real-Time Updates**: Walk-in registrations appear instantly in the admin dashboard
+- **QR Code Management**: Generate, download, and print QR codes for clinics
+- **Public Registration**: No login required for patients to register as walk-ins
 
 ## 🛠 Tech Stack
 
@@ -19,6 +27,7 @@ A comprehensive clinic management system with AI-powered voice agent for automat
 - **Backend**: Supabase (PostgreSQL), Edge Functions
 - **Voice AI**: ElevenLabs API for speech synthesis, OpenAI Whisper for transcription
 - **Telephony**: Twilio Voice API for call handling
+- **QR Codes**: QR Server API for QR code generation
 - **Real-time**: Supabase real-time subscriptions
 - **Deployment**: Vite build system, ready for production
 
@@ -108,141 +117,110 @@ supabase secrets set CLINIC_TRANSFER_NUMBER=your_clinic_phone_number
 npm run dev
 ```
 
-## 📞 MediZap AI Voice Agent Setup
+## 📞 QR-Based Walk-In Registration Setup
 
-### Enhanced Transcription Flow
+### How It Works
 
-The system now uses a dual-layer approach for speech recognition:
+1. **Clinic Slug Generation**: Each clinic automatically gets a unique slug (e.g., `downtown-medical-center`)
+2. **QR Code Creation**: System generates QR codes pointing to `/walkin/{clinic-slug}`
+3. **Patient Registration**: Patients scan QR code and fill out mobile-friendly form
+4. **Real-Time Updates**: Walk-in registrations appear instantly in clinic dashboard
 
-1. **Primary**: Twilio's built-in speech recognition for real-time processing
-2. **Fallback**: OpenAI Whisper for higher accuracy when Twilio recognition fails
-3. **Multi-language**: Supports English and regional languages like Malayalam
+### QR Code Features
 
-### Call Flow Architecture
+- **Auto-Generated Slugs**: Slugs are automatically created from clinic names
+- **Unique URLs**: Each clinic has a unique, human-readable registration URL
+- **Downloadable QR Codes**: Download individual or bulk QR codes as PNG files
+- **Printable Formats**: Print-optimized QR codes with clinic information
+- **Mobile Optimization**: Registration forms work perfectly on all devices
 
-```
-Caller speaks → Twilio receives audio
-    ↓
-Twilio Speech Recognition (Primary)
-    ↓
-If recognition fails → Record audio → Whisper Transcription (Fallback)
-    ↓
-Voice Agent Processing → Database Operations
-    ↓
-ElevenLabs TTS → Response to caller
-```
+### Walk-In Management
 
-### ElevenLabs Configuration
-
-1. Sign up at [elevenlabs.io](https://elevenlabs.io)
-2. Create or select a voice model (recommended: professional, clear voice)
-3. Get your API key from the profile section
-4. Copy the Voice ID from your selected voice
-5. Add both to your `.env` file
-
-### OpenAI Whisper Configuration
-
-1. Create an OpenAI account at [openai.com](https://openai.com)
-2. Generate an API key from the API section
-3. Add the key to your environment variables
-4. The system will automatically use Whisper for transcription fallback
-
-### Voice Agent Features
-
-- **Natural Conversation**: Handles complex appointment booking flows
-- **Enhanced Transcription**: Dual-layer speech recognition for maximum accuracy
-- **Multi-language Support**: Configurable language detection and processing
-- **Department Selection**: Automatically lists available departments
-- **Doctor Availability**: Real-time checking of doctor schedules
-- **Date/Time Parsing**: Understands various date and time formats
-- **Appointment Confirmation**: Confirms details before booking
-- **Error Handling**: Graceful fallback to human transfer
-- **Call Logging**: Comprehensive conversation and performance tracking
+- **Real-Time Dashboard**: See all walk-in registrations as they happen
+- **Status Management**: Update patient status (waiting, in-progress, completed, cancelled)
+- **Patient Information**: Full patient details including reason for visit
+- **Search & Filter**: Find patients quickly by name, ID, or status
 
 ## 📊 Database Schema
 
 The system uses the following main tables:
 
-- **clinics**: Clinic information and contact details
+- **clinics**: Clinic information with unique slugs for QR codes
 - **departments**: Medical departments within each clinic
 - **doctors**: Doctor profiles with availability schedules
 - **appointments**: Patient appointments with real-time updates
+- **walk_ins**: Walk-in patient registrations from QR code forms
 - **call_logs**: Voice agent call history and analytics
 - **conversation_logs**: Detailed conversation transcripts
 
+### New QR Code Schema
+
+```sql
+-- Clinics table now includes slug column
+ALTER TABLE clinics ADD COLUMN slug text UNIQUE;
+
+-- Walk-ins table structure
+CREATE TABLE walk_ins (
+  id bigint PRIMARY KEY,
+  patient_name text,
+  patient_id integer,
+  date_of_birth date,
+  Gender text,
+  contact_number numeric,
+  reason_for_visit text,
+  status text,
+  created_at timestamptz DEFAULT now()
+);
+```
+
 ## 🔧 API Documentation
 
-### MediZap AI Voice Agent Endpoint
+### QR Code Registration Endpoint
 
 ```
-POST /functions/v1/voice-agent
+GET /walkin/{clinic-slug}
 ```
 
-Processes voice input and returns AI-generated responses for appointment booking.
+Public endpoint that displays the walk-in registration form for the specified clinic.
 
-### Whisper Transcription Endpoint
+### Walk-In Registration API
 
 ```
-POST /functions/v1/whisper-transcribe
+POST /api/walk-ins
 ```
 
-Transcribes audio using OpenAI Whisper for enhanced accuracy.
+Submits walk-in registration data to the database.
 
 **Request Body:**
 ```json
 {
-  "audioData": "base64_encoded_audio",
-  "language": "en",
-  "callSid": "twilio-call-id",
-  "clinicId": "uuid"
+  "patient_name": "John Doe",
+  "date_of_birth": "1990-01-01",
+  "Gender": "Male",
+  "contact_number": "+1234567890",
+  "reason_for_visit": "Routine checkup"
 }
 ```
 
-### Twilio Webhook
-
-```
-POST /functions/v1/twilio-webhook
-```
-
-Handles incoming Twilio voice calls and integrates with the MediZap AI voice agent.
-
 ## 🎨 Features Overview
 
-### Dashboard
-- Real-time appointment tracking
-- MediZap AI voice agent status monitoring
-- Quick stats and analytics
-- Live updates when new appointments are booked
+### QR Code Management
+- **Clinic-Specific QR Codes**: Each clinic gets a unique QR code
+- **Bulk Operations**: Download or print all QR codes at once
+- **URL Management**: View and regenerate clinic URLs
+- **Testing Interface**: Test registration forms directly from admin panel
 
-### MediZap AI Voice Agent Capabilities
-- Natural conversation flow with context awareness
-- Enhanced speech recognition with Whisper fallback
-- Multi-language support (English, Malayalam, etc.)
-- Department and doctor selection with real-time availability
-- Intelligent date/time parsing (supports "tomorrow", "next Monday", etc.)
-- Appointment booking with confirmation
-- Automatic fallback to human transfer when needed
-- Comprehensive error handling and retry logic
+### Walk-In Registration
+- **Mobile-First Design**: Optimized for smartphone use
+- **Offline Capability**: Forms work even with poor connectivity
+- **Validation**: Comprehensive form validation with helpful error messages
+- **Success Confirmation**: Clear confirmation with patient ID
 
-### Call Center Analytics
-- Real-time call monitoring
-- Conversation transcripts and logs
-- Performance metrics (success rate, average duration)
-- Call volume analytics
-- Transcription accuracy tracking
-
-### Appointment Management
-- Automatic conflict detection
-- Real-time availability updates
-- Patient contact information
-- Appointment status tracking
-- Bulk operations and filtering
-
-### Doctor Management
-- Availability schedule configuration
-- Department-based specialization
-- Real-time schedule updates
-- Performance tracking
+### Admin Dashboard
+- **Real-Time Updates**: See registrations as they happen
+- **Status Management**: Update patient status with dropdown menus
+- **Search & Filter**: Find patients by name, ID, status, or date
+- **Export Capabilities**: Export walk-in data for reporting
 
 ## 🚀 Production Deployment
 
@@ -259,59 +237,42 @@ Deploy the `dist` folder to:
 - AWS S3 + CloudFront
 - Any static hosting provider
 
-### Backend Requirements
-- Supabase project with deployed edge functions
-- Configured environment variables in Supabase
-- SSL certificate for webhook endpoints (automatic with Supabase)
+### QR Code Setup for Production
 
-### Twilio Production Setup
-1. Verify your Twilio account for production use
-2. Purchase a dedicated phone number
-3. Configure production webhook URLs
-4. Set up call recording (optional, with patient consent)
-5. Configure call forwarding for human transfer
-
-### Security Considerations
-- All API keys stored securely in Supabase environment
-- Row Level Security (RLS) enabled on all tables
-- HTTPS enforced for all webhook endpoints
-- Input validation and sanitization
-- Rate limiting on API endpoints
+1. **Domain Configuration**: Update QR codes to use your production domain
+2. **SSL Certificate**: Ensure HTTPS is enabled for security
+3. **Mobile Testing**: Test QR codes on various mobile devices
+4. **Print Quality**: Verify QR codes print clearly at different sizes
 
 ## 🔒 Security Features
 
-- **Authentication**: Supabase Auth with email/password
-- **Authorization**: Role-based access control (admin, staff, doctor)
-- **Data Protection**: Row Level Security on all database tables
-- **API Security**: Secure API key management
-- **Input Validation**: Comprehensive input sanitization
-- **HTTPS**: All communications encrypted
+- **Public Registration**: Walk-in forms are public but secure
+- **Input Validation**: Comprehensive validation on all form inputs
+- **Rate Limiting**: Prevent spam registrations
+- **Data Encryption**: All data encrypted in transit and at rest
+- **GDPR Compliance**: Patient data handling follows privacy regulations
 
-## 📈 Monitoring & Analytics
+## 📱 Mobile Optimization
 
-### Call Analytics
-- Total calls handled by AI agent
-- Appointment booking success rate
-- Average call duration
-- Patient satisfaction metrics
-- Peak call times and patterns
-- Transcription accuracy rates
+### QR Code Scanning
+- **Camera Integration**: Works with built-in camera apps
+- **QR Code Readers**: Compatible with all major QR code apps
+- **Fallback URLs**: Manual URL entry if QR scanning fails
 
-### Performance Metrics
-- AI response time
-- Conversation completion rate
-- Transfer to human rate
-- System uptime and reliability
-- Speech recognition accuracy
+### Mobile Form Experience
+- **Touch-Friendly**: Large buttons and inputs for easy touch interaction
+- **Auto-Focus**: Smart field focusing for faster completion
+- **Keyboard Optimization**: Appropriate keyboards for different input types
+- **Offline Support**: Forms work even with poor connectivity
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+2. Create a feature branch (`git checkout -b feature/qr-registration`)
 3. Make your changes
-4. Test thoroughly with both manual and automated tests
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
+4. Test thoroughly with QR codes and mobile devices
+5. Commit your changes (`git commit -m 'Add QR-based walk-in registration'`)
+6. Push to the branch (`git push origin feature/qr-registration`)
 7. Submit a pull request
 
 ## 📝 License
@@ -322,21 +283,21 @@ MIT License - see LICENSE file for details
 
 For support and questions:
 - Create an issue in the GitHub repository
-- Check the documentation and setup guides
-- Review the example configurations
+- Check the QR code setup documentation
+- Review the mobile optimization guides
 - Contact support for enterprise deployments
 
 ## 🎯 Roadmap
 
-- [x] Multi-language support for voice agent
-- [x] Enhanced speech recognition with Whisper
-- [ ] SMS appointment reminders
-- [ ] Video consultation integration
-- [ ] Advanced analytics dashboard
-- [ ] Mobile app for clinic staff
-- [ ] Integration with popular EMR systems
-- [ ] WhatsApp Business API integration
-- [ ] Advanced AI training and customization
+- [x] QR-based walk-in registration
+- [x] Mobile-optimized registration forms
+- [x] Real-time walk-in dashboard
+- [x] Bulk QR code management
+- [ ] SMS notifications for walk-in status updates
+- [ ] Integration with appointment scheduling
+- [ ] Advanced analytics for walk-in patterns
+- [ ] Multi-language support for registration forms
+- [ ] Kiosk mode for in-clinic registration tablets
 
 ---
 
@@ -344,11 +305,9 @@ Built with ❤️ for modern healthcare management powered by **MediZap AI**
 
 ### 🌟 Key Differentiators
 
+- **QR Code Innovation**: First-of-its-kind QR-based patient registration
+- **Mobile-First**: Designed specifically for smartphone users
+- **Real-Time Updates**: Instant synchronization across all devices
 - **Production-Ready**: Enterprise-grade architecture and security
-- **Enhanced Transcription**: Dual-layer speech recognition for maximum accuracy
-- **Multi-language**: Support for regional languages and dialects
-- **Real-Time**: Instant updates across all components
-- **Scalable**: Built to handle high call volumes
-- **Intelligent**: Advanced AI with natural conversation capabilities
-- **Comprehensive**: Complete clinic management solution
-- **Modern**: Beautiful, responsive UI with excellent UX
+- **Scalable**: Built to handle unlimited clinics and registrations
+- **User-Friendly**: Intuitive interface for both patients and staff
