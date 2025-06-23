@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, User, Phone, Mail, Mic, MessageSquare } from 'lucide-react';
+import { Calendar, Clock, User, Phone, Mail, Mic, MessageSquare, UserPlus, Zap } from 'lucide-react';
 import { VoiceAgentModal } from '../voice/VoiceAgentModal';
 import { GuestSignupForm } from '../auth/GuestSignupForm';
 import { useDepartments, useDoctors } from '../../hooks/useSupabaseData';
@@ -27,6 +27,7 @@ export function PatientAppointmentBooking({
   const [showGuestSignup, setShowGuestSignup] = useState(false);
   const [bookingMethod, setBookingMethod] = useState<'form' | 'voice' | null>(null);
   const [appointmentData, setAppointmentData] = useState<any>(null);
+  const [registeredPatientData, setRegisteredPatientData] = useState<any>(null);
 
   const { departments } = useDepartments();
   const { doctors } = useDoctors();
@@ -46,16 +47,47 @@ export function PatientAppointmentBooking({
     setShowVoiceAgent(false);
     
     // If guest user, prompt for account creation
-    if (userType === 'guest') {
+    if (userType === 'guest' && !registeredPatientData) {
       setShowGuestSignup(true);
     }
   };
 
+  const handlePatientRegistered = (patient: any) => {
+    setRegisteredPatientData(patient);
+    // Don't show signup form if patient was registered via voice
+  };
+
   const handleGuestRegistered = (userData: any) => {
     setShowGuestSignup(false);
-    // Update appointment with registered user data
-    // This would typically involve updating the appointment record
+    setRegisteredPatientData(userData);
   };
+
+  const getUserTypeInfo = () => {
+    const types = {
+      guest: {
+        icon: User,
+        label: 'Guest User',
+        color: 'bg-slate-100 text-slate-700',
+        description: 'Book appointments without registration'
+      },
+      patient: {
+        icon: User,
+        label: 'Registered Patient',
+        color: 'bg-sky-100 text-sky-700',
+        description: 'Full access to appointment management'
+      },
+      premium: {
+        icon: Zap,
+        label: 'Premium Patient',
+        color: 'bg-emerald-100 text-emerald-700',
+        description: 'Priority booking and advanced features'
+      }
+    };
+    return types[userType];
+  };
+
+  const typeInfo = getUserTypeInfo();
+  const Icon = typeInfo.icon;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
@@ -70,9 +102,21 @@ export function PatientAppointmentBooking({
             />
             <h1 className="text-3xl font-bold text-slate-800">MediZap AI</h1>
           </div>
-          <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 mb-6">
-            <h2 className="text-xl font-bold text-slate-800 mb-1">{clinicName}</h2>
-            <p className="text-slate-600">Book Your Appointment</p>
+          <div className="bg-white rounded-lg p-6 shadow-sm border border-slate-200 mb-6">
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">{clinicName}</h2>
+            <p className="text-slate-600 mb-4">AI-Powered Appointment Booking</p>
+            
+            {/* User Type Badge */}
+            <div className="flex items-center justify-center space-x-3">
+              <div className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${typeInfo.color}`}>
+                <Icon className="h-4 w-4 mr-2" />
+                {typeInfo.label}
+              </div>
+              {patientData?.name && (
+                <span className="text-slate-600">Welcome, {patientData.name}</span>
+              )}
+            </div>
+            <p className="text-sm text-slate-500 mt-2">{typeInfo.description}</p>
           </div>
         </div>
 
@@ -97,6 +141,32 @@ export function PatientAppointmentBooking({
                     <p><span className="font-medium">ID:</span> {appointmentData.id}</p>
                   </div>
                 </div>
+                {registeredPatientData && (
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      <span className="font-medium">Account Created:</span> You're now a registered patient with ID {registeredPatientData.id}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Patient Registration Success */}
+        {registeredPatientData && !appointmentData && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8">
+            <div className="flex items-start space-x-3">
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <UserPlus className="h-4 w-4 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-blue-800 mb-2">Patient Registration Complete!</h3>
+                <div className="text-sm text-blue-700">
+                  <p><span className="font-medium">Name:</span> {registeredPatientData.name}</p>
+                  <p><span className="font-medium">Phone:</span> {registeredPatientData.phone}</p>
+                  <p><span className="font-medium">Patient ID:</span> {registeredPatientData.id}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -111,9 +181,9 @@ export function PatientAppointmentBooking({
                 <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-sky-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Mic className="h-8 w-8 text-emerald-600" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-800 mb-2">Voice Booking</h3>
+                <h3 className="text-xl font-bold text-slate-800 mb-2">AI Voice Assistant</h3>
                 <p className="text-slate-600">
-                  Book your appointment using our AI voice assistant. Just speak naturally!
+                  Book appointments using our advanced AI voice assistant. Just speak naturally!
                 </p>
               </div>
 
@@ -129,6 +199,10 @@ export function PatientAppointmentBooking({
                 <div className="flex items-center space-x-3 text-sm text-slate-600">
                   <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                   <span>Instant confirmation and booking</span>
+                </div>
+                <div className="flex items-center space-x-3 text-sm text-slate-600">
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                  <span>Patient registration if needed</span>
                 </div>
               </div>
 
@@ -147,9 +221,9 @@ export function PatientAppointmentBooking({
                 <div className="w-16 h-16 bg-gradient-to-br from-sky-100 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <MessageSquare className="h-8 w-8 text-sky-600" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-800 mb-2">Form Booking</h3>
+                <h3 className="text-xl font-bold text-slate-800 mb-2">Traditional Booking</h3>
                 <p className="text-slate-600">
-                  Traditional booking form with step-by-step selection process.
+                  Use our step-by-step form for appointment booking with manual selection.
                 </p>
               </div>
 
@@ -166,6 +240,10 @@ export function PatientAppointmentBooking({
                   <div className="w-2 h-2 bg-sky-500 rounded-full"></div>
                   <span>Fill in patient details</span>
                 </div>
+                <div className="flex items-center space-x-3 text-sm text-slate-600">
+                  <div className="w-2 h-2 bg-sky-500 rounded-full"></div>
+                  <span>Review and confirm booking</span>
+                </div>
               </div>
 
               <button
@@ -179,23 +257,6 @@ export function PatientAppointmentBooking({
           </div>
         )}
 
-        {/* User Type Badge */}
-        <div className="text-center mt-8">
-          <div className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${
-            userType === 'guest' 
-              ? 'bg-slate-100 text-slate-700' 
-              : userType === 'premium'
-              ? 'bg-emerald-100 text-emerald-700'
-              : 'bg-sky-100 text-sky-700'
-          }`}>
-            <User className="h-4 w-4 mr-2" />
-            {userType === 'guest' ? 'Guest User' : userType === 'premium' ? 'Premium Patient' : 'Registered Patient'}
-            {patientData?.name && (
-              <span className="ml-2">• {patientData.name}</span>
-            )}
-          </div>
-        </div>
-
         {/* Clinic Info */}
         <div className="mt-8 bg-white rounded-lg p-6 shadow-sm border border-slate-200">
           <h3 className="text-lg font-medium text-slate-800 mb-4">Available Services</h3>
@@ -206,6 +267,51 @@ export function PatientAppointmentBooking({
                 <span className="text-sm text-slate-700">{dept.name}</span>
               </div>
             ))}
+          </div>
+          
+          {departments.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-slate-500">Loading available services...</p>
+            </div>
+          )}
+        </div>
+
+        {/* AI Features Notice */}
+        <div className="mt-8 bg-gradient-to-r from-emerald-50 to-sky-50 rounded-lg border border-emerald-200 p-6">
+          <div className="flex items-start space-x-4">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                <Zap className="h-5 w-5 text-emerald-600" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-medium text-slate-800 mb-2">
+                Powered by MediZap AI
+              </h3>
+              <p className="text-slate-600 mb-4">
+                Our AI voice assistant can help you with appointment booking, patient registration, and answering questions about our services.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <h4 className="font-medium text-slate-700 mb-2">Voice Features:</h4>
+                  <ul className="space-y-1 text-slate-600">
+                    <li>• Multi-language support</li>
+                    <li>• Natural conversation flow</li>
+                    <li>• Intelligent slot finding</li>
+                    <li>• Automatic patient registration</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-medium text-slate-700 mb-2">Smart Capabilities:</h4>
+                  <ul className="space-y-1 text-slate-600">
+                    <li>• Real-time availability checking</li>
+                    <li>• Doctor and department matching</li>
+                    <li>• Appointment confirmation</li>
+                    <li>• Follow-up scheduling</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -218,6 +324,7 @@ export function PatientAppointmentBooking({
         patientName={patientData?.name}
         clinicId={clinicId}
         onAppointmentBooked={handleAppointmentBooked}
+        onPatientRegistered={handlePatientRegistered}
       />
 
       {/* Guest Signup Modal */}

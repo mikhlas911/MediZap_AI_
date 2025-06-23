@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, AlertCircle, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertCircle, UserPlus, Users } from 'lucide-react';
 import { useAuth } from './AuthProvider';
 
 interface LoginFormProps {
@@ -69,7 +69,7 @@ export function LoginForm({ onSwitchToRegister, onSwitchToGuestSignup, onSwitchT
         <p className="text-slate-600">Sign in to your account</p>
       </div>
 
-      <div className="bg-slate-50 rounded-xl shadow-lg p-8 border border-slate-200">
+      <div className="bg-white rounded-xl shadow-lg p-8 border border-slate-200">
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -104,7 +104,7 @@ export function LoginForm({ onSwitchToRegister, onSwitchToGuestSignup, onSwitchT
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors bg-slate-50"
+                className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors bg-white"
                 placeholder="Enter your email"
               />
             </div>
@@ -125,7 +125,7 @@ export function LoginForm({ onSwitchToRegister, onSwitchToGuestSignup, onSwitchT
                 required
                 value={formData.password}
                 onChange={handleChange}
-                className="block w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors bg-slate-50"
+                className="block w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors bg-white"
                 placeholder="Enter your password"
               />
               <button
@@ -145,10 +145,10 @@ export function LoginForm({ onSwitchToRegister, onSwitchToGuestSignup, onSwitchT
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex items-center justify-center px-4 py-3 border border-transparent rounded-lg shadow-sm text-sm font-medium text-slate-50 bg-gradient-to-r from-sky-600 to-emerald-600 hover:from-sky-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            className="w-full flex items-center justify-center px-4 py-3 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-sky-600 to-emerald-600 hover:from-sky-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
           >
             {loading ? (
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-50"></div>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
             ) : (
               'Sign In'
             )}
@@ -163,28 +163,28 @@ export function LoginForm({ onSwitchToRegister, onSwitchToGuestSignup, onSwitchT
               Forgot your password?
             </button>
             
-            <div className="border-t border-slate-200 pt-3">
-              <div className="text-sm text-slate-600 space-y-2">
-                <div>
-                  <span>Healthcare provider? </span>
-                  <button
-                    type="button"
-                    onClick={onSwitchToRegister}
-                    className="text-sky-600 hover:text-sky-700 font-medium transition-colors"
-                  >
-                    Register your clinic
-                  </button>
-                </div>
-                <div>
-                  <span>Patient? </span>
-                  <button
-                    type="button"
-                    onClick={onSwitchToGuestSignup}
-                    className="text-emerald-600 hover:text-emerald-700 font-medium transition-colors inline-flex items-center"
-                  >
-                    <UserPlus className="h-4 w-4 mr-1" />
-                    Create patient account
-                  </button>
+            <div className="border-t border-slate-200 pt-4">
+              <div className="text-sm text-slate-600 space-y-3">
+                <div className="bg-gradient-to-r from-sky-50 to-emerald-50 rounded-lg p-4 border border-sky-200">
+                  <h4 className="font-medium text-slate-800 mb-2">New to MediZap AI?</h4>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={onSwitchToRegister}
+                      className="w-full inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-sky-600 to-emerald-600 text-white rounded-lg hover:from-sky-700 hover:to-emerald-700 transition-all duration-200 text-sm font-medium"
+                    >
+                      <Users className="h-4 w-4 mr-2" />
+                      Register Your Clinic
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onSwitchToGuestSignup}
+                      className="w-full inline-flex items-center justify-center px-4 py-2 border border-emerald-300 text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors text-sm font-medium"
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Create Patient Account
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

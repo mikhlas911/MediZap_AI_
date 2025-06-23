@@ -17,6 +17,7 @@ interface GuestRegistrationData {
   lastName: string;
   email: string;
   phone: string;
+  dateOfBirth: string;
   password: string;
   confirmPassword: string;
   isGuestConversion: boolean;
@@ -35,6 +36,7 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
     lastName: guestData?.name?.split(' ').slice(1).join(' ') || '',
     email: guestData?.email || '',
     phone: guestData?.phone || '',
+    dateOfBirth: '',
     password: '',
     confirmPassword: '',
     isGuestConversion: !!guestData
@@ -48,7 +50,7 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
   };
 
   const validateForm = () => {
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone) {
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.dateOfBirth) {
       setError('Please fill in all required fields');
       return false;
     }
@@ -75,6 +77,15 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
       return false;
     }
 
+    // Validate age (must be at least 13 years old)
+    const birthDate = new Date(formData.dateOfBirth);
+    const today = new Date();
+    const age = today.getFullYear() - birthDate.getFullYear();
+    if (age < 13 || age > 120) {
+      setError('Please enter a valid date of birth');
+      return false;
+    }
+
     return true;
   };
 
@@ -95,6 +106,7 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
           last_name: formData.lastName,
           full_name: `${formData.firstName} ${formData.lastName}`,
           phone: formData.phone,
+          date_of_birth: formData.dateOfBirth,
           user_type: 'patient',
           is_guest_conversion: formData.isGuestConversion
         }
@@ -111,7 +123,8 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
             id: authData.user.id,
             email: formData.email,
             name: `${formData.firstName} ${formData.lastName}`,
-            phone: formData.phone
+            phone: formData.phone,
+            dateOfBirth: formData.dateOfBirth
           });
         }
       }
@@ -125,7 +138,7 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
   if (success) {
     return (
       <div className="w-full max-w-md mx-auto text-center">
-        <div className="bg-slate-50 rounded-xl shadow-lg p-8 border border-emerald-200">
+        <div className="bg-white rounded-xl shadow-lg p-8 border border-emerald-200">
           <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="h-8 w-8 text-emerald-600" />
           </div>
@@ -140,7 +153,7 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
           </p>
           <button
             onClick={onSwitchToLogin}
-            className="w-full px-4 py-3 bg-gradient-to-r from-sky-600 to-emerald-600 text-slate-50 rounded-lg hover:from-sky-700 hover:to-emerald-700 transition-all duration-200"
+            className="w-full px-4 py-3 bg-gradient-to-r from-emerald-600 to-sky-600 text-white rounded-lg hover:from-emerald-700 hover:to-sky-700 transition-all duration-200"
           >
             Continue to Sign In
           </button>
@@ -171,7 +184,7 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-slate-50 rounded-xl shadow-lg p-8 border border-slate-200">
+      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-8 border border-slate-200">
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center space-x-3 mb-6">
             <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
@@ -255,23 +268,41 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
             </div>
           </div>
 
-          <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-slate-700 mb-2">
-              Phone Number *
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <User className="h-5 w-5 text-slate-400" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-slate-700 mb-2">
+                Phone Number *
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User className="h-5 w-5 text-slate-400" />
+                </div>
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  required
+                  value={formData.phone}
+                  onChange={handleChange}
+                  className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors bg-white"
+                  placeholder="+1 (555) 123-4567"
+                />
               </div>
+            </div>
+
+            <div>
+              <label htmlFor="dateOfBirth" className="block text-sm font-medium text-slate-700 mb-2">
+                Date of Birth *
+              </label>
               <input
-                id="phone"
-                name="phone"
-                type="tel"
+                id="dateOfBirth"
+                name="dateOfBirth"
+                type="date"
                 required
-                value={formData.phone}
+                value={formData.dateOfBirth}
                 onChange={handleChange}
-                className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors bg-white"
-                placeholder="+1 (555) 123-4567"
+                max={new Date().toISOString().split('T')[0]}
+                className="block w-full px-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors bg-white"
               />
             </div>
           </div>
@@ -345,11 +376,11 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-4 py-3 bg-gradient-to-r from-emerald-600 to-sky-600 text-slate-50 rounded-lg hover:from-emerald-700 hover:to-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            className="w-full px-4 py-3 bg-gradient-to-r from-emerald-600 to-sky-600 text-white rounded-lg hover:from-emerald-700 hover:to-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
           >
             {loading ? (
               <div className="flex items-center justify-center">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-50 mr-2"></div>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                 {formData.isGuestConversion ? 'Converting Account...' : 'Creating Account...'}
               </div>
             ) : (

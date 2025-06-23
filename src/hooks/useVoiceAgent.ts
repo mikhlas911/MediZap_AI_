@@ -5,6 +5,7 @@ interface VoiceAgentConfig {
   clinicId?: string;
   userType?: 'guest' | 'patient' | 'premium';
   patientName?: string;
+  language?: 'en' | 'hi' | 'ml';
 }
 
 interface VoiceAgentState {
@@ -17,6 +18,7 @@ interface VoiceAgentState {
   response: string;
   error: string | null;
   appointmentData: any | null;
+  patientData: any | null;
 }
 
 export function useVoiceAgent(config: VoiceAgentConfig) {
@@ -29,7 +31,8 @@ export function useVoiceAgent(config: VoiceAgentConfig) {
     transcript: '',
     response: '',
     error: null,
-    appointmentData: null
+    appointmentData: null,
+    patientData: null
   });
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -38,6 +41,7 @@ export function useVoiceAgent(config: VoiceAgentConfig) {
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number>();
   const conversationStateRef = useRef<any>(null);
+  const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   // Initialize audio context and analyzer
   const initializeAudio = useCallback(async () => {
@@ -46,7 +50,8 @@ export function useVoiceAgent(config: VoiceAgentConfig) {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          sampleRate: 16000
         } 
       });
       
@@ -60,9 +65,11 @@ export function useVoiceAgent(config: VoiceAgentConfig) {
       source.connect(analyserRef.current);
 
       // Create media recorder
-      mediaRecorderRef.current = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+        ? 'audio/webm;codecs=opus' 
+        : 'audio/webm';
+      
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
 
       setState(prev => ({ ...prev, isConnected: true, error: null }));
       return true;
@@ -154,7 +161,7 @@ export function useVoiceAgent(config: VoiceAgentConfig) {
           },
           body: JSON.stringify({
             audioData: base64Audio,
-            language: 'auto', // Auto-detect language
+            language: config.language || 'en',
             clinicId: config.clinicId
           }),
         }
@@ -180,7 +187,7 @@ export function useVoiceAgent(config: VoiceAgentConfig) {
         isProcessing: false 
       }));
     }
-  }, [config.clinicId]);
+  }, [config.clinicId, config.language]);
 
   // Process with voice agent
   const processWithVoiceAgent = useCallback(async (userInput: string) => {
@@ -201,7 +208,8 @@ export function useVoiceAgent(config: VoiceAgentConfig) {
               callSid: `web-${Date.now()}`,
               conversationState: conversationStateRef.current,
               userType: config.userType,
-              patientName: config.patientName
+              patientName: config.patientName,
+              language: config.language || 'en'
             },
             config: {
               elevenLabsApiKey: import.meta.env.VITE_ELEVENLABS_API_KEY,
@@ -226,7 +234,8 @@ export function useVoiceAgent(config: VoiceAgentConfig) {
         ...prev, 
         response: agentResponse.text,
         isProcessing: false,
-        appointmentData: agentResponse.appointmentData || prev.appointmentData
+        appointmentData: agentResponse.appointmentData || prev.appointmentData,
+        patientData: agentResponse.patientData || prev.patientData
       }));
 
       // Synthesize speech
@@ -244,24 +253,51 @@ export function useVoiceAgent(config: VoiceAgentConfig) {
     }
   }, [config]);
 
-  // Synthesize speech using ElevenLabs
+  // Synthesize speech using browser's built-in TTS
   const synthesizeSpeech = useCallback(async (text: string) => {
     try {
       setState(prev => ({ ...prev, isSpeaking: true }));
 
-      // For now, we'll use browser's built-in speech synthesis
-      // In production, you'd use ElevenLabs API
+      // Cancel any ongoing speech
+      speechSynthesis.cancel();
+
       const utterance = new SpeechSynthesisUtterance(text);
+      speechSynthesisRef.current = utterance;
+
+      // Configure voice based on language
+      const voices = speechSynthesis.getVoices();
+      let selectedVoice = null;
+
+      if (config.language === 'hi') {
+        selectedVoice = voices.find(voice => 
+          voice.lang.includes('hi') || voice.name.includes('Hindi')
+        );
+      } else if (config.language === 'ml') {
+        selectedVoice = voices.find(voice => 
+          voice.lang.includes('ml') || voice.name.includes('Malayalam')
+        );
+      } else {
+        selectedVoice = voices.find(voice => 
+          voice.lang.includes('en') && voice.name.includes('Female')
+        ) || voices.find(voice => voice.lang.includes('en'));
+      }
+
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+      }
+
       utterance.rate = 0.9;
       utterance.pitch = 1;
       utterance.volume = 0.8;
 
       utterance.onend = () => {
         setState(prev => ({ ...prev, isSpeaking: false }));
+        speechSynthesisRef.current = null;
       };
 
       utterance.onerror = () => {
         setState(prev => ({ ...prev, isSpeaking: false }));
+        speechSynthesisRef.current = null;
       };
 
       speechSynthesis.speak(utterance);
@@ -270,7 +306,7 @@ export function useVoiceAgent(config: VoiceAgentConfig) {
       console.error('Error synthesizing speech:', error);
       setState(prev => ({ ...prev, isSpeaking: false }));
     }
-  }, []);
+  }, [config.language]);
 
   // End session
   const endSession = useCallback(() => {
@@ -281,6 +317,7 @@ export function useVoiceAgent(config: VoiceAgentConfig) {
 
     // Stop speech synthesis
     speechSynthesis.cancel();
+    speechSynthesisRef.current = null;
 
     // Close audio streams
     if (streamRef.current) {
@@ -307,12 +344,27 @@ export function useVoiceAgent(config: VoiceAgentConfig) {
       transcript: '',
       response: '',
       error: null,
-      appointmentData: null
+      appointmentData: null,
+      patientData: null
     });
 
     // Reset conversation state
     conversationStateRef.current = null;
   }, [state.isListening]);
+
+  // Load voices when component mounts
+  useEffect(() => {
+    const loadVoices = () => {
+      speechSynthesis.getVoices();
+    };
+
+    loadVoices();
+    speechSynthesis.addEventListener('voiceschanged', loadVoices);
+
+    return () => {
+      speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+    };
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {

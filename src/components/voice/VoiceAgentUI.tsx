@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Phone, PhoneOff, Volume2, VolumeX, Settings, User } from 'lucide-react';
+import { Mic, MicOff, Phone, PhoneOff, Volume2, VolumeX, Settings, User, Zap } from 'lucide-react';
 
 interface VoiceAgentUIProps {
   isActive?: boolean;
@@ -218,7 +218,7 @@ export function VoiceAgentUI({
     const badges = {
       guest: { icon: User, label: 'Guest', color: 'bg-slate-100 text-slate-700' },
       patient: { icon: User, label: 'Patient', color: 'bg-sky-100 text-sky-700' },
-      premium: { icon: User, label: 'Premium', color: 'bg-emerald-100 text-emerald-700' }
+      premium: { icon: Zap, label: 'Premium', color: 'bg-emerald-100 text-emerald-700' }
     };
 
     const badge = badges[userType];

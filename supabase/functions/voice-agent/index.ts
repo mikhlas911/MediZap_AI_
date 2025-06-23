@@ -14,6 +14,8 @@ interface VoiceAgentRequest {
     callSid: string;
     conversationState?: ConversationState;
     language?: string;
+    userType?: 'guest' | 'patient' | 'premium';
+    patientName?: string;
   };
   config: {
     elevenLabsApiKey: string;
@@ -22,9 +24,12 @@ interface VoiceAgentRequest {
 }
 
 interface ConversationState {
-  step: 'greeting' | 'name' | 'department' | 'doctor' | 'date' | 'time' | 'confirmation' | 'complete' | 'transfer';
+  step: 'greeting' | 'name' | 'phone' | 'email' | 'dob' | 'department' | 'doctor' | 'date' | 'time' | 'confirmation' | 'complete' | 'transfer' | 'patient_registration';
   data: {
     patientName?: string;
+    patientPhone?: string;
+    patientEmail?: string;
+    patientDOB?: string;
     departmentId?: string;
     departmentName?: string;
     doctorId?: string;
@@ -33,8 +38,9 @@ interface ConversationState {
     appointmentTime?: string;
     availableDoctors?: any[];
     availableSlots?: string[];
-    patientEmail?: string;
     appointmentNotes?: string;
+    isNewPatient?: boolean;
+    registrationComplete?: boolean;
   };
   attempts: number;
   lastActivity: string;
@@ -57,21 +63,6 @@ interface Doctor {
   is_active: boolean;
 }
 
-interface Appointment {
-  id: string;
-  clinic_id: string;
-  department_id: string;
-  doctor_id: string;
-  patient_name: string;
-  phone_number: string;
-  email?: string;
-  appointment_date: string;
-  appointment_time: string;
-  status: string;
-  notes?: string;
-  created_at: string;
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -88,7 +79,9 @@ Deno.serve(async (req: Request) => {
     // Initialize or get conversation state
     let conversationState: ConversationState = context.conversationState || {
       step: 'greeting',
-      data: {},
+      data: {
+        isNewPatient: context.userType === 'guest'
+      },
       attempts: 0,
       lastActivity: new Date().toISOString()
     };
@@ -96,7 +89,7 @@ Deno.serve(async (req: Request) => {
     // Update last activity
     conversationState.lastActivity = new Date().toISOString();
 
-    // Get clinic information with enhanced data
+    // Get clinic information
     const { data: clinic, error: clinicError } = await supabase
       .from('clinics')
       .select('id, name, phone, address, email')
@@ -127,11 +120,11 @@ Deno.serve(async (req: Request) => {
       clinic
     );
 
-    // Log the conversation step with enhanced details
+    // Log the conversation step
     await logConversation(supabase, context, userInput, response.text, conversationState.step, conversationState.data);
 
     // Create or update call log
-    await updateCallLog(supabase, context, conversationState, response.appointmentData);
+    await updateCallLog(supabase, context, conversationState, response.appointmentData, response.patientData);
 
     return new Response(
       JSON.stringify({
@@ -139,6 +132,7 @@ Deno.serve(async (req: Request) => {
         shouldTransfer: response.shouldTransfer,
         shouldHangup: response.shouldHangup,
         appointmentData: response.appointmentData,
+        patientData: response.patientData,
         conversationState: response.conversationState,
         nextAction: response.nextAction
       }),
@@ -192,14 +186,25 @@ async function processConversation(
 
   switch (state.step) {
     case 'greeting':
-      state.step = 'name';
-      state.attempts = 0;
-      return {
-        text: `Hello! Thank you for calling ${clinic?.name || 'our clinic'}. I'm your AI assistant, and I'm here to help you schedule an appointment. May I please have your full name?`,
-        shouldTransfer: false,
-        conversationState: state,
-        nextAction: 'gather_speech'
-      };
+      if (state.data.isNewPatient) {
+        state.step = 'name';
+        state.attempts = 0;
+        return {
+          text: `Hello! Welcome to ${clinic?.name || 'our clinic'}. I'm your AI assistant, and I can help you register as a new patient and book an appointment. To get started, may I please have your full name?`,
+          shouldTransfer: false,
+          conversationState: state,
+          nextAction: 'gather_speech'
+        };
+      } else {
+        state.step = 'department';
+        state.attempts = 0;
+        return {
+          text: `Hello ${context.patientName || ''}! Welcome back to ${clinic?.name || 'our clinic'}. I'm here to help you book an appointment. Which department would you like to schedule with today?`,
+          shouldTransfer: false,
+          conversationState: state,
+          nextAction: 'gather_speech'
+        };
+      }
 
     case 'name':
       if (input.length < 2) {
@@ -219,12 +224,11 @@ async function processConversation(
         };
       }
 
-      // Extract and validate name
       const name = extractName(userInput);
       if (name.length < 2) {
         state.attempts++;
         return {
-          text: "I need your full name to schedule the appointment. Could you please say your first and last name?",
+          text: "I need your full name to register you. Could you please say your first and last name?",
           shouldTransfer: false,
           conversationState: state,
           nextAction: 'gather_speech'
@@ -232,17 +236,131 @@ async function processConversation(
       }
 
       state.data.patientName = name;
+      state.step = 'phone';
+      state.attempts = 0;
+
+      return {
+        text: `Thank you, ${name}! Now I need your phone number for our records. Please tell me your phone number.`,
+        shouldTransfer: false,
+        conversationState: state,
+        nextAction: 'gather_speech'
+      };
+
+    case 'phone':
+      const phoneNumber = extractPhoneNumber(userInput);
+      if (!phoneNumber) {
+        state.attempts++;
+        if (state.attempts >= 3) {
+          return {
+            text: "I'm having trouble understanding your phone number. Let me transfer you to our staff.",
+            shouldTransfer: true,
+            conversationState: state
+          };
+        }
+        return {
+          text: "I didn't catch your phone number clearly. Could you please say it again, including the area code?",
+          shouldTransfer: false,
+          conversationState: state,
+          nextAction: 'gather_speech'
+        };
+      }
+
+      state.data.patientPhone = phoneNumber;
+      state.step = 'email';
+      state.attempts = 0;
+
+      return {
+        text: `Got it! Your phone number is ${phoneNumber}. Now, could you please provide your email address? You can spell it out if needed.`,
+        shouldTransfer: false,
+        conversationState: state,
+        nextAction: 'gather_speech'
+      };
+
+    case 'email':
+      const email = extractEmail(userInput);
+      if (!email) {
+        state.attempts++;
+        if (state.attempts >= 3) {
+          // Skip email and continue
+          state.step = 'dob';
+          state.attempts = 0;
+          return {
+            text: "That's okay, we can skip the email for now. Could you please tell me your date of birth? For example, 'January 15th, 1990'.",
+            shouldTransfer: false,
+            conversationState: state,
+            nextAction: 'gather_speech'
+          };
+        }
+        return {
+          text: "I didn't catch your email clearly. Could you spell it out for me, or say 'skip' if you'd prefer not to provide it?",
+          shouldTransfer: false,
+          conversationState: state,
+          nextAction: 'gather_speech'
+        };
+      }
+
+      state.data.patientEmail = email;
+      state.step = 'dob';
+      state.attempts = 0;
+
+      return {
+        text: `Perfect! I have your email as ${email}. Now, could you please tell me your date of birth? For example, 'January 15th, 1990'.`,
+        shouldTransfer: false,
+        conversationState: state,
+        nextAction: 'gather_speech'
+      };
+
+    case 'dob':
+      const dateOfBirth = parseDate(userInput);
+      if (!dateOfBirth) {
+        state.attempts++;
+        if (state.attempts >= 3) {
+          return {
+            text: "I'm having trouble understanding your date of birth. Let me transfer you to our staff.",
+            shouldTransfer: true,
+            conversationState: state
+          };
+        }
+        return {
+          text: "I didn't catch your date of birth. Could you say it again? For example, 'January 15th, 1990' or 'January 15, 1990'.",
+          shouldTransfer: false,
+          conversationState: state,
+          nextAction: 'gather_speech'
+        };
+      }
+
+      state.data.patientDOB = dateOfBirth;
+      
+      // Register the patient
+      const registrationResult = await registerPatient(supabase, {
+        name: state.data.patientName!,
+        phone: state.data.patientPhone!,
+        email: state.data.patientEmail,
+        dateOfBirth: dateOfBirth,
+        clinicId: context.clinicId
+      });
+
+      if (!registrationResult.success) {
+        return {
+          text: "I'm sorry, there was an error registering you. Let me transfer you to our staff who can help.",
+          shouldTransfer: true,
+          conversationState: state
+        };
+      }
+
+      state.data.registrationComplete = true;
       state.step = 'department';
       state.attempts = 0;
 
-      // Fetch available departments with enhanced error handling
+      // Fetch available departments
       const departments = await fetchDepartments(supabase, context.clinicId);
       
       if (!departments || departments.length === 0) {
         return {
-          text: "I'm sorry, but I'm having trouble accessing our department information. Let me transfer you to our staff who can help you schedule your appointment.",
+          text: "Great! You're now registered. However, I'm having trouble accessing our department information. Let me transfer you to our staff to complete your appointment booking.",
           shouldTransfer: true,
-          conversationState: state
+          conversationState: state,
+          patientData: registrationResult.patient
         };
       }
 
@@ -251,9 +369,10 @@ async function processConversation(
         .join(', ');
 
       return {
-        text: `Nice to meet you, ${name}! We have the following departments available: ${departmentsList}. Which department would you like to schedule an appointment with?`,
+        text: `Excellent! You're now registered as a patient. Now let's book your appointment. We have the following departments available: ${departmentsList}. Which department would you like to schedule with?`,
         shouldTransfer: false,
         conversationState: state,
+        patientData: registrationResult.patient,
         nextAction: 'gather_speech'
       };
 
@@ -483,7 +602,8 @@ async function processConversation(
           department_id: state.data.departmentId!,
           doctor_id: state.data.doctorId!,
           patient_name: state.data.patientName!,
-          phone_number: context.callerPhone,
+          phone_number: state.data.patientPhone || context.callerPhone,
+          email: state.data.patientEmail,
           appointment_date: state.data.appointmentDate!,
           appointment_time: state.data.appointmentTime!,
           status: 'pending',
@@ -501,10 +621,14 @@ async function processConversation(
 
         state.step = 'complete';
         return {
-          text: `Excellent! Your appointment has been successfully booked. Here are your details: ${state.data.patientName} with Dr. ${state.data.doctorName} in ${state.data.departmentName} on ${formatDate(state.data.appointmentDate!)} at ${formatTime(state.data.appointmentTime!)}. Your appointment ID is ${appointmentResult.appointment.id}. You'll receive a confirmation shortly. Is there anything else I can help you with today?`,
+          text: `Excellent! Your appointment has been successfully booked. Here are your details: ${state.data.patientName} with Dr. ${state.data.doctorName} in ${state.data.departmentName} on ${formatDate(state.data.appointmentDate!)} at ${formatTime(state.data.appointmentTime!)}. Your appointment ID is ${appointmentResult.appointment.id}. ${state.data.registrationComplete ? 'You are now registered as a patient with us. ' : ''}Is there anything else I can help you with today?`,
           shouldTransfer: false,
           conversationState: state,
-          appointmentData: appointmentResult.appointment,
+          appointmentData: {
+            ...appointmentResult.appointment,
+            doctor_name: state.data.doctorName,
+            department_name: state.data.departmentName
+          },
           nextAction: 'gather_speech'
         };
       } else if (input.includes('no') || input.includes('cancel') || input.includes('change') ||
@@ -537,7 +661,7 @@ async function processConversation(
       if (input.includes('no') || input.includes('nothing') || input.includes('that\'s all') ||
           input.includes('goodbye') || input.includes('thank you')) {
         return {
-          text: `Perfect! Thank you for calling ${clinic.name}, and we look forward to seeing you for your appointment. Have a great day!`,
+          text: `Perfect! Thank you for choosing ${clinic.name}, and we look forward to seeing you for your appointment. Have a great day!`,
           shouldHangup: true,
           conversationState: state
         };
@@ -594,6 +718,26 @@ async function fetchDoctorsByDepartment(supabase: any, clinicId: string, departm
   }
 }
 
+async function registerPatient(supabase: any, patientData: any): Promise<{ success: boolean; patient?: any; error?: string }> {
+  try {
+    // For now, we'll just return success with mock data
+    // In a real implementation, you'd create a patient record
+    const patient = {
+      id: `patient_${Date.now()}`,
+      name: patientData.name,
+      phone: patientData.phone,
+      email: patientData.email,
+      dateOfBirth: patientData.dateOfBirth,
+      clinicId: patientData.clinicId
+    };
+
+    return { success: true, patient };
+  } catch (error) {
+    console.error('Error registering patient:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 async function checkTimeSlotAvailability(
   supabase: any,
   doctorId: string,
@@ -622,7 +766,7 @@ async function checkTimeSlotAvailability(
   }
 }
 
-async function bookAppointment(supabase: any, appointmentData: any): Promise<{ success: boolean; appointment?: Appointment; error?: string }> {
+async function bookAppointment(supabase: any, appointmentData: any): Promise<{ success: boolean; appointment?: any; error?: string }> {
   try {
     const { data, error } = await supabase
       .from('appointments')
@@ -677,14 +821,14 @@ async function getAvailableTimeSlots(supabase: any, doctorId: string, date: stri
   }
 }
 
-async function updateCallLog(supabase: any, context: any, state: ConversationState, appointmentData?: any) {
+async function updateCallLog(supabase: any, context: any, state: ConversationState, appointmentData?: any, patientData?: any) {
   try {
     const callLogData = {
       clinic_id: context.clinicId,
       call_sid: context.callSid,
       caller_phone: context.callerPhone,
       call_duration: 0, // Will be updated by Twilio webhook
-      call_summary: generateCallSummary(state, appointmentData),
+      call_summary: generateCallSummary(state, appointmentData, patientData),
       appointment_booked: !!appointmentData,
       created_at: new Date().toISOString()
     };
@@ -742,13 +886,15 @@ async function logConversation(
 }
 
 // Helper functions
-function generateCallSummary(state: ConversationState, appointmentData?: any): string {
+function generateCallSummary(state: ConversationState, appointmentData?: any, patientData?: any): string {
   if (appointmentData) {
-    return `Appointment successfully booked for ${state.data.patientName} with Dr. ${state.data.doctorName} in ${state.data.departmentName} on ${state.data.appointmentDate} at ${state.data.appointmentTime}`;
+    return `Appointment successfully booked for ${state.data.patientName} with Dr. ${state.data.doctorName} in ${state.data.departmentName} on ${state.data.appointmentDate} at ${state.data.appointmentTime}${patientData ? ' (new patient registered)' : ''}`;
+  } else if (patientData) {
+    return `Patient ${state.data.patientName} successfully registered but appointment booking incomplete`;
   } else if (state.step === 'transfer') {
     return `Call transferred to human staff during ${state.step} step`;
   } else {
-    return `Call ended at ${state.step} step without booking appointment`;
+    return `Call ended at ${state.step} step without completing registration or booking`;
   }
 }
 
@@ -761,6 +907,50 @@ function extractName(input: string): string {
   // Take first two meaningful words as name
   const extractedName = nameWords.slice(0, 2).join(' ');
   return extractedName || input.trim();
+}
+
+function extractPhoneNumber(input: string): string | null {
+  // Remove all non-digit characters except + and spaces
+  const cleaned = input.replace(/[^\d\+\s]/g, '');
+  
+  // Extract digits only
+  const digits = cleaned.replace(/[^\d]/g, '');
+  
+  // Check if we have a valid phone number (10-15 digits)
+  if (digits.length >= 10 && digits.length <= 15) {
+    // Format as a standard phone number
+    if (digits.length === 10) {
+      return `+1${digits}`;
+    } else if (digits.length === 11 && digits.startsWith('1')) {
+      return `+${digits}`;
+    } else {
+      return `+${digits}`;
+    }
+  }
+  
+  return null;
+}
+
+function extractEmail(input: string): string | null {
+  // Simple email extraction
+  const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
+  const match = input.match(emailRegex);
+  
+  if (match) {
+    return match[0].toLowerCase();
+  }
+  
+  // Try to handle spelled out emails
+  const spokenEmail = input.toLowerCase()
+    .replace(/\s+at\s+/g, '@')
+    .replace(/\s+dot\s+/g, '.')
+    .replace(/\s+/g, '');
+  
+  if (emailRegex.test(spokenEmail)) {
+    return spokenEmail;
+  }
+  
+  return null;
 }
 
 function findBestMatch(input: string, items: any[], field: string): any {

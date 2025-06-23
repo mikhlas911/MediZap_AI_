@@ -61,14 +61,15 @@ export function ClinicRegistrationForm({ onSwitchToLogin }: ClinicRegistrationFo
     setError(null);
 
     try {
-      // Create user account only
+      // Create user account with clinic admin metadata
       const { data: authData, error: authError } = await signUp(
         formData.email,
         formData.password,
         {
           first_name: formData.firstName,
           last_name: formData.lastName,
-          full_name: `${formData.firstName} ${formData.lastName}`
+          full_name: `${formData.firstName} ${formData.lastName}`,
+          user_type: 'clinic_admin' // Mark as clinic admin
         }
       );
 
@@ -87,17 +88,17 @@ export function ClinicRegistrationForm({ onSwitchToLogin }: ClinicRegistrationFo
   if (success) {
     return (
       <div className="w-full max-w-md mx-auto text-center">
-        <div className="bg-slate-50 rounded-xl shadow-lg p-8 border border-emerald-200">
+        <div className="bg-white rounded-xl shadow-lg p-8 border border-emerald-200">
           <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="h-8 w-8 text-emerald-600" />
           </div>
           <h2 className="text-2xl font-bold text-slate-800 mb-2">Account Created Successfully!</h2>
           <p className="text-slate-600 mb-6">
-            Your account has been created. Please check your email to verify your account, then sign in to register your clinic.
+            Your clinic admin account has been created. Please check your email to verify your account, then sign in to register your clinic.
           </p>
           <button
             onClick={onSwitchToLogin}
-            className="w-full px-4 py-3 bg-gradient-to-r from-sky-600 to-emerald-600 text-slate-50 rounded-lg hover:from-sky-700 hover:to-emerald-700 transition-all duration-200"
+            className="w-full px-4 py-3 bg-gradient-to-r from-sky-600 to-emerald-600 text-white rounded-lg hover:from-sky-700 hover:to-emerald-700 transition-all duration-200"
           >
             Continue to Sign In
           </button>
@@ -117,10 +118,10 @@ export function ClinicRegistrationForm({ onSwitchToLogin }: ClinicRegistrationFo
           />
           <h1 className="text-3xl font-bold text-slate-800">MediZap AI</h1>
         </div>
-        <p className="text-slate-600">Create your account to get started</p>
+        <p className="text-slate-600">Create your clinic admin account</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-slate-50 rounded-xl shadow-lg p-8 border border-slate-200">
+      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-8 border border-slate-200">
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center space-x-3 mb-6">
             <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
@@ -147,7 +148,7 @@ export function ClinicRegistrationForm({ onSwitchToLogin }: ClinicRegistrationFo
                   required
                   value={formData.firstName}
                   onChange={handleChange}
-                  className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors bg-slate-50"
+                  className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors bg-white"
                   placeholder="Enter first name"
                 />
               </div>
@@ -168,7 +169,7 @@ export function ClinicRegistrationForm({ onSwitchToLogin }: ClinicRegistrationFo
                   required
                   value={formData.lastName}
                   onChange={handleChange}
-                  className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors bg-slate-50"
+                  className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors bg-white"
                   placeholder="Enter last name"
                 />
               </div>
@@ -190,7 +191,7 @@ export function ClinicRegistrationForm({ onSwitchToLogin }: ClinicRegistrationFo
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors bg-slate-50"
+                className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors bg-white"
                 placeholder="Enter your email"
               />
             </div>
@@ -212,7 +213,7 @@ export function ClinicRegistrationForm({ onSwitchToLogin }: ClinicRegistrationFo
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="block w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors bg-slate-50"
+                  className="block w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors bg-white"
                   placeholder="Create password"
                 />
                 <button
@@ -244,7 +245,7 @@ export function ClinicRegistrationForm({ onSwitchToLogin }: ClinicRegistrationFo
                   required
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className="block w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors bg-slate-50"
+                  className="block w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors bg-white"
                   placeholder="Confirm password"
                 />
                 <button
@@ -265,15 +266,15 @@ export function ClinicRegistrationForm({ onSwitchToLogin }: ClinicRegistrationFo
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-4 py-3 bg-gradient-to-r from-sky-600 to-emerald-600 text-slate-50 rounded-lg hover:from-sky-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            className="w-full px-4 py-3 bg-gradient-to-r from-sky-600 to-emerald-600 text-white rounded-lg hover:from-sky-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
           >
             {loading ? (
               <div className="flex items-center justify-center">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-50 mr-2"></div>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                 Creating Account...
               </div>
             ) : (
-              'Create Account'
+              'Create Clinic Admin Account'
             )}
           </button>
         </div>

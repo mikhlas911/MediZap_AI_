@@ -9,6 +9,7 @@ import { AppointmentsPage } from './pages/AppointmentsPage';
 import { DoctorsPage } from './pages/DoctorsPage';
 import { CallCenterPage } from './pages/CallCenterPage';
 import { WalkInsPage } from './pages/WalkInsPage';
+import { PatientBookingPage } from './pages/PatientBookingPage';
 import { PublicWalkInForm } from './components/PublicWalkInForm';
 import { useClinicContext } from './hooks/useClinicContext';
 import { supabase } from './lib/supabase';
@@ -19,10 +20,43 @@ function AppContent() {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionLoading, setConnectionLoading] = useState(true);
   const [showCreateClinicForm, setShowCreateClinicForm] = useState(false);
+  const [userType, setUserType] = useState<'clinic_admin' | 'patient' | null>(null);
+  const [defaultClinic, setDefaultClinic] = useState<any>(null);
 
   useEffect(() => {
     checkSupabaseConnection();
   }, []);
+
+  useEffect(() => {
+    // Determine user type from metadata
+    if (user?.user_metadata) {
+      const metadata = user.user_metadata;
+      if (metadata.user_type === 'patient') {
+        setUserType('patient');
+        // For patients, find a default clinic to redirect to
+        findDefaultClinic();
+      } else {
+        setUserType('clinic_admin');
+      }
+    }
+  }, [user]);
+
+  const findDefaultClinic = async () => {
+    try {
+      // Get the first active clinic for patient booking
+      const { data: clinics, error } = await supabase
+        .from('clinics')
+        .select('id, name, slug')
+        .eq('is_active', true)
+        .limit(1);
+
+      if (!error && clinics && clinics.length > 0) {
+        setDefaultClinic(clinics[0]);
+      }
+    } catch (err) {
+      console.error('Error finding default clinic:', err);
+    }
+  };
 
   const checkSupabaseConnection = async () => {
     try {
@@ -139,104 +173,137 @@ function AppContent() {
     );
   }
 
-  // Show auth page if user is not logged in
-  if (!user) {
-    return <AuthPage />;
-  }
-
-  // Show loading while checking clinic context
-  if (clinicLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative mb-6">
-            <img 
-              src="/logo_symbol.png" 
-              alt="MediZap AI" 
-              className="h-16 w-16 mx-auto animate-pulse"
-            />
-            <div className="absolute -top-2 -right-2 w-6 h-6 bg-emerald-500 rounded-full animate-ping"></div>
-          </div>
-          <p className="text-slate-600">Loading clinic information...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error if clinic context failed to load
-  if (clinicError) {
-    // Show create clinic form if user chose to register a new clinic
-    if (showCreateClinicForm) {
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-          <CreateClinicForm
-            userId={user.id}
-            onClinicCreated={handleClinicCreated}
-            onCancel={() => setShowCreateClinicForm(false)}
-          />
-        </div>
-      );
-    }
-
-    // Show clinic access required message with option to create clinic
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <div className="max-w-md mx-auto text-center">
-          <div className="bg-slate-50 rounded-xl shadow-lg p-8 border border-slate-200">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-slate-800 mb-2">Clinic Access Required</h2>
-            <p className="text-slate-600 mb-6">
-              {clinicError === 'No clinic association found' 
-                ? 'Your account is not associated with any clinic. You can register a new clinic or contact your clinic administrator to get access.'
-                : `Error: ${clinicError}`
-              }
-            </p>
-            <div className="space-y-3">
-              {clinicError === 'No clinic association found' && (
-                <button
-                  onClick={() => setShowCreateClinicForm(true)}
-                  className="w-full px-4 py-3 bg-gradient-to-r from-sky-600 to-emerald-600 text-slate-50 rounded-lg hover:from-sky-700 hover:to-emerald-700 transition-all duration-200 font-medium"
-                >
-                  Register a New Clinic
-                </button>
-              )}
-              <button
-                onClick={() => window.location.reload()}
-                className="w-full px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
-              >
-                Retry
-              </button>
-              <button
-                onClick={handleSignOut}
-                className="w-full px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors"
-              >
-                Sign Out
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show main app with routing if user is authenticated and has clinic access
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public walk-in registration route */}
+        {/* Public routes - accessible without authentication */}
         <Route path="/walkin/:clinicSlug" element={<PublicWalkInForm />} />
+        <Route path="/book/:clinicSlug" element={<PatientBookingPage />} />
         
-        {/* Protected routes */}
-        <Route path="/" element={<Layout><Dashboard /></Layout>} />
-        <Route path="/appointments" element={<Layout><AppointmentsPage /></Layout>} />
-        <Route path="/doctors" element={<Layout><DoctorsPage /></Layout>} />
-        <Route path="/calls" element={<Layout><CallCenterPage /></Layout>} />
-        <Route path="/walkins" element={<Layout><WalkInsPage /></Layout>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Authentication required routes */}
+        {!user ? (
+          <Route path="*" element={<AuthPage />} />
+        ) : (
+          <>
+            {/* Patient users - redirect to booking interface */}
+            {userType === 'patient' ? (
+              <>
+                {defaultClinic ? (
+                  <Route path="*" element={<Navigate to={`/book/${defaultClinic.slug}`} replace />} />
+                ) : (
+                  <Route path="*" element={
+                    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+                      <div className="max-w-md mx-auto text-center">
+                        <div className="bg-white rounded-xl shadow-lg p-8 border border-emerald-200">
+                          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          </div>
+                          <h2 className="text-2xl font-bold text-slate-800 mb-2">Welcome to MediZap AI!</h2>
+                          <p className="text-slate-600 mb-6">
+                            Your patient account has been created successfully. Loading available clinics for appointment booking...
+                          </p>
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+                          <div className="space-y-3">
+                            <p className="text-sm text-slate-500">
+                              You'll be redirected to the booking interface shortly.
+                            </p>
+                            <button
+                              onClick={handleSignOut}
+                              className="w-full px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+                            >
+                              Sign Out
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  } />
+                )}
+              </>
+            ) : (
+              <>
+                {/* Show loading while checking clinic context for clinic admins */}
+                {clinicLoading ? (
+                  <Route path="*" element={
+                    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="relative mb-6">
+                          <img 
+                            src="/logo_symbol.png" 
+                            alt="MediZap AI" 
+                            className="h-16 w-16 mx-auto animate-pulse"
+                          />
+                          <div className="absolute -top-2 -right-2 w-6 h-6 bg-emerald-500 rounded-full animate-ping"></div>
+                        </div>
+                        <p className="text-slate-600">Loading clinic information...</p>
+                      </div>
+                    </div>
+                  } />
+                ) : (
+                  <>
+                    {/* Handle clinic admin users */}
+                    {clinicError ? (
+                      // Clinic admin without clinic - show create clinic form immediately or error
+                      <Route path="*" element={
+                        showCreateClinicForm || clinicError === 'No clinic association found' ? (
+                          <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+                            <CreateClinicForm
+                              userId={user.id}
+                              onClinicCreated={handleClinicCreated}
+                              onCancel={() => setShowCreateClinicForm(false)}
+                            />
+                          </div>
+                        ) : (
+                          <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+                            <div className="max-w-md mx-auto text-center">
+                              <div className="bg-slate-50 rounded-xl shadow-lg p-8 border border-slate-200">
+                                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                  <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                  </svg>
+                                </div>
+                                <h2 className="text-xl font-bold text-slate-800 mb-2">Clinic Access Required</h2>
+                                <p className="text-slate-600 mb-6">
+                                  Error: {clinicError}
+                                </p>
+                                <div className="space-y-3">
+                                  <button
+                                    onClick={() => window.location.reload()}
+                                    className="w-full px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+                                  >
+                                    Retry
+                                  </button>
+                                  <button
+                                    onClick={handleSignOut}
+                                    className="w-full px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors"
+                                  >
+                                    Sign Out
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      } />
+                    ) : (
+                      // Clinic admin with clinic access - show main app
+                      <>
+                        <Route path="/" element={<Layout><Dashboard /></Layout>} />
+                        <Route path="/appointments" element={<Layout><AppointmentsPage /></Layout>} />
+                        <Route path="/doctors" element={<Layout><DoctorsPage /></Layout>} />
+                        <Route path="/calls" element={<Layout><CallCenterPage /></Layout>} />
+                        <Route path="/walkins" element={<Layout><WalkInsPage /></Layout>} />
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </>
+        )}
       </Routes>
     </BrowserRouter>
   );
