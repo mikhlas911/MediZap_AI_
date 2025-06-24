@@ -339,6 +339,9 @@ export function PatientAppointmentBooking({
           setSelectedMethod(null);
         }}
         clinicId={clinicId}
+        clinicName={clinicName}
+        onAppointmentBooked={handleAppointmentBooked}
+        onWalkinRegistered={handleWalkinRegistered}
       />
 
       {/* Traditional Booking Form Modal */}

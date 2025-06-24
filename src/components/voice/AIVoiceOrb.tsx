@@ -82,6 +82,16 @@ export function AIVoiceOrb({
       const widget = document.createElement('elevenlabs-convai');
       widget.setAttribute('agent-id', 'agent_01jy12vvryfnetmjmbe0vby1ec');
       
+      // Pass clinic context as dynamic variables
+      const dynamicVariables = {
+        clinicId: clinicId,
+        clinicName: clinicName || 'Unknown Clinic',
+        context: 'patient_booking',
+        timestamp: new Date().toISOString()
+      };
+      
+      widget.setAttribute('dynamic-variables', JSON.stringify(dynamicVariables));
+      
       // Add custom styling to make it fit our modal
       widget.style.width = '100%';
       widget.style.height = '400px';
@@ -90,11 +100,27 @@ export function AIVoiceOrb({
 
       // Add event listeners for widget events if available
       widget.addEventListener('conversation-started', () => {
-        console.log('ElevenLabs conversation started');
+        console.log('ElevenLabs conversation started for clinic:', clinicName);
       });
 
       widget.addEventListener('conversation-ended', () => {
-        console.log('ElevenLabs conversation ended');
+        console.log('ElevenLabs conversation ended for clinic:', clinicName);
+      });
+
+      // Listen for appointment booking events
+      widget.addEventListener('appointment-booked', (event: any) => {
+        console.log('Appointment booked via AI:', event.detail);
+        if (onAppointmentBooked) {
+          onAppointmentBooked(event.detail);
+        }
+      });
+
+      // Listen for walk-in registration events
+      widget.addEventListener('walkin-registered', (event: any) => {
+        console.log('Walk-in registered via AI:', event.detail);
+        if (onWalkinRegistered) {
+          onWalkinRegistered(event.detail);
+        }
       });
 
       // Append widget to container
