@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, Search, Building2, ArrowRight, Mic, Zap, MessageSquare, Calendar, Phone } from 'lucide-react';
 import { ClinicSelector } from '../ClinicSelector';
+import { AIVoiceOrb } from '../voice/AIVoiceOrb';
 
 interface GuestAccessFormProps {
   onSwitchToLogin: () => void;
@@ -8,6 +9,7 @@ interface GuestAccessFormProps {
 
 export function GuestAccessForm({ onSwitchToLogin }: GuestAccessFormProps) {
   const [selectedClinic, setSelectedClinic] = useState<any>(null);
+  const [showVoiceOrb, setShowVoiceOrb] = useState(false);
 
   const handleClinicSelect = (clinic: any) => {
     setSelectedClinic(clinic);
@@ -15,7 +17,7 @@ export function GuestAccessForm({ onSwitchToLogin }: GuestAccessFormProps) {
 
   const handleVoiceBooking = () => {
     if (selectedClinic) {
-      window.location.href = `/book/${selectedClinic.slug}?method=voice`;
+      setShowVoiceOrb(true);
     }
   };
 
@@ -23,6 +25,18 @@ export function GuestAccessForm({ onSwitchToLogin }: GuestAccessFormProps) {
     if (selectedClinic) {
       window.location.href = `/book/${selectedClinic.slug}?method=form`;
     }
+  };
+
+  const handleAppointmentBooked = (appointment: any) => {
+    console.log('Appointment booked:', appointment);
+    setShowVoiceOrb(false);
+    // Show success message or redirect
+  };
+
+  const handleWalkinRegistered = (walkin: any) => {
+    console.log('Walk-in registered:', walkin);
+    setShowVoiceOrb(false);
+    // Show success message or redirect
   };
 
   return (
@@ -101,19 +115,19 @@ export function GuestAccessForm({ onSwitchToLogin }: GuestAccessFormProps) {
                     <div className="space-y-3 mb-6">
                       <div className="flex items-center space-x-3 text-sm text-slate-600">
                         <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                        <span>Natural conversation in multiple languages</span>
+                        <span>Natural conversation with AI</span>
                       </div>
                       <div className="flex items-center space-x-3 text-sm text-slate-600">
                         <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                        <span>AI automatically finds available slots</span>
+                        <span>Appointment booking & walk-in registration</span>
+                      </div>
+                      <div className="flex items-center space-x-3 text-sm text-slate-600">
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                        <span>Answer questions about services</span>
                       </div>
                       <div className="flex items-center space-x-3 text-sm text-slate-600">
                         <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                         <span>Instant confirmation and booking</span>
-                      </div>
-                      <div className="flex items-center space-x-3 text-sm text-slate-600">
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                        <span>Patient registration if needed</span>
                       </div>
                     </div>
 
@@ -122,7 +136,7 @@ export function GuestAccessForm({ onSwitchToLogin }: GuestAccessFormProps) {
                       className="w-full inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-emerald-600 to-sky-600 text-white rounded-lg hover:from-emerald-700 hover:to-sky-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
                     >
                       <Mic className="h-5 w-5 mr-2" />
-                      Start Voice Booking
+                      Start AI Voice Chat
                       <ArrowRight className="h-4 w-4 ml-2" />
                     </button>
                   </div>
@@ -193,23 +207,23 @@ export function GuestAccessForm({ onSwitchToLogin }: GuestAccessFormProps) {
 
           {/* Features */}
           <div className="bg-slate-50 rounded-lg p-6">
-            <h4 className="font-medium text-slate-800 mb-3">Guest Access Features</h4>
+            <h4 className="font-medium text-slate-800 mb-3">AI Voice Assistant Features</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-600">
               <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-sky-500 rounded-full"></div>
-                <span>No account required</span>
+                <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                <span>Natural voice conversation</span>
               </div>
               <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-sky-500 rounded-full"></div>
-                <span>Quick appointment booking</span>
+                <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                <span>Appointment booking</span>
               </div>
               <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-sky-500 rounded-full"></div>
-                <span>AI-powered assistance</span>
+                <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                <span>Walk-in registration</span>
               </div>
               <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-sky-500 rounded-full"></div>
-                <span>Instant confirmation</span>
+                <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                <span>FAQ and information</span>
               </div>
             </div>
           </div>
@@ -230,6 +244,16 @@ export function GuestAccessForm({ onSwitchToLogin }: GuestAccessFormProps) {
           </div>
         </div>
       </div>
+
+      {/* AI Voice Orb Modal */}
+      <AIVoiceOrb
+        isOpen={showVoiceOrb}
+        onClose={() => setShowVoiceOrb(false)}
+        clinicId={selectedClinic?.id}
+        clinicName={selectedClinic?.name}
+        onAppointmentBooked={handleAppointmentBooked}
+        onWalkinRegistered={handleWalkinRegistered}
+      />
     </div>
   );
 }
