@@ -76,6 +76,10 @@ Deno.serve(async (req: Request) => {
 
     const { userInput, context, config }: VoiceAgentRequest = await req.json();
 
+    console.log('=== VOICE AGENT REQUEST ===');
+    console.log('User Input:', userInput);
+    console.log('Context:', JSON.stringify(context, null, 2));
+
     // Initialize or get conversation state
     let conversationState: ConversationState = context.conversationState || {
       step: 'greeting',
@@ -111,6 +115,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    console.log('Clinic found:', clinic.name);
+
     // Process user input and determine response
     const response = await processConversation(
       userInput,
@@ -125,6 +131,10 @@ Deno.serve(async (req: Request) => {
 
     // Create or update call log
     await updateCallLog(supabase, context, conversationState, response.appointmentData, response.patientData);
+
+    console.log('=== VOICE AGENT RESPONSE ===');
+    console.log('Response Text:', response.text);
+    console.log('Conversation State:', JSON.stringify(response.conversationState, null, 2));
 
     return new Response(
       JSON.stringify({
@@ -164,6 +174,11 @@ async function processConversation(
   clinic: any
 ) {
   const input = userInput.toLowerCase().trim();
+  
+  console.log(`=== PROCESSING CONVERSATION STEP: ${state.step} ===`);
+  console.log('Raw user input:', userInput);
+  console.log('Processed input:', input);
+  console.log('Current state data:', JSON.stringify(state.data, null, 2));
   
   // Handle common requests to transfer to human
   if (input.includes('human') || input.includes('person') || input.includes('staff') || 
@@ -207,6 +222,7 @@ async function processConversation(
       }
 
     case 'name':
+      console.log('Processing name extraction...');
       if (input.length < 2) {
         state.attempts++;
         if (state.attempts >= 3) {
@@ -225,6 +241,8 @@ async function processConversation(
       }
 
       const name = extractName(userInput);
+      console.log('Extracted name:', name);
+      
       if (name.length < 2) {
         state.attempts++;
         return {
@@ -247,7 +265,10 @@ async function processConversation(
       };
 
     case 'phone':
+      console.log('Processing phone number extraction...');
       const phoneNumber = extractPhoneNumber(userInput);
+      console.log('Extracted phone number:', phoneNumber);
+      
       if (!phoneNumber) {
         state.attempts++;
         if (state.attempts >= 3) {
@@ -277,7 +298,10 @@ async function processConversation(
       };
 
     case 'email':
+      console.log('Processing email extraction...');
       const email = extractEmail(userInput);
+      console.log('Extracted email:', email);
+      
       if (!email) {
         state.attempts++;
         if (state.attempts >= 3) {
@@ -311,7 +335,10 @@ async function processConversation(
       };
 
     case 'dob':
+      console.log('Processing date of birth extraction...');
       const dateOfBirth = parseDate(userInput);
+      console.log('Extracted date of birth:', dateOfBirth);
+      
       if (!dateOfBirth) {
         state.attempts++;
         if (state.attempts >= 3) {
@@ -353,7 +380,9 @@ async function processConversation(
       state.attempts = 0;
 
       // Fetch available departments
+      console.log('Fetching departments for clinic:', context.clinicId);
       const departments = await fetchDepartments(supabase, context.clinicId);
+      console.log('Found departments:', departments.length, departments.map(d => d.name));
       
       if (!departments || departments.length === 0) {
         return {
@@ -377,8 +406,12 @@ async function processConversation(
       };
 
     case 'department':
+      console.log('Processing department selection...');
       const departments = await fetchDepartments(supabase, context.clinicId);
+      console.log('Available departments:', departments.map(d => d.name));
+      
       const matchedDept = findBestMatch(input, departments, 'name');
+      console.log('Matched department:', matchedDept?.name || 'None');
       
       if (!matchedDept) {
         state.attempts++;
@@ -405,7 +438,9 @@ async function processConversation(
       state.attempts = 0;
 
       // Fetch available doctors for the selected department
+      console.log('Fetching doctors for department:', matchedDept.name);
       const doctors = await fetchDoctorsByDepartment(supabase, context.clinicId, matchedDept.id);
+      console.log('Found doctors:', doctors.length, doctors.map(d => d.name));
 
       if (!doctors || doctors.length === 0) {
         return {
@@ -443,8 +478,12 @@ async function processConversation(
       }
 
     case 'doctor':
+      console.log('Processing doctor selection...');
       const availableDoctors = state.data.availableDoctors || [];
+      console.log('Available doctors:', availableDoctors.map(d => d.name));
+      
       const matchedDoctor = findBestMatch(input, availableDoctors, 'name');
+      console.log('Matched doctor:', matchedDoctor?.name || 'None');
 
       if (!matchedDoctor) {
         state.attempts++;
@@ -478,7 +517,9 @@ async function processConversation(
       };
 
     case 'date':
+      console.log('Processing date selection...');
       const parsedDate = parseDate(userInput);
+      console.log('Parsed date:', parsedDate);
       
       if (!parsedDate) {
         state.attempts++;
@@ -514,11 +555,13 @@ async function processConversation(
       state.attempts = 0;
 
       // Get available time slots for the selected doctor and date
+      console.log('Fetching available time slots for doctor:', state.data.doctorName, 'on date:', parsedDate);
       const availableSlots = await getAvailableTimeSlots(
         supabase,
         state.data.doctorId!,
         parsedDate
       );
+      console.log('Available time slots:', availableSlots);
 
       if (availableSlots.length === 0) {
         return {
@@ -530,7 +573,7 @@ async function processConversation(
       }
 
       state.data.availableSlots = availableSlots;
-      const timeSlots = availableSlots.slice(0, 5).join(', ');
+      const timeSlots = availableSlots.slice(0, 5).map(formatTime).join(', ');
       const moreSlots = availableSlots.length > 5 ? ` and ${availableSlots.length - 5} more times` : '';
 
       return {
@@ -541,8 +584,12 @@ async function processConversation(
       };
 
     case 'time':
+      console.log('Processing time selection...');
       const availableSlots = state.data.availableSlots || [];
+      console.log('Available time slots:', availableSlots);
+      
       const matchedTime = findBestTimeMatch(input, availableSlots);
+      console.log('Matched time:', matchedTime);
 
       if (!matchedTime) {
         state.attempts++;
@@ -554,7 +601,7 @@ async function processConversation(
           };
         }
 
-        const timeList = availableSlots.slice(0, 5).join(', ');
+        const timeList = availableSlots.slice(0, 5).map(formatTime).join(', ');
         return {
           text: `I didn't catch which time you'd like. Available times include: ${timeList}. Which time would you prefer?`,
           shouldTransfer: false,
@@ -575,6 +622,7 @@ async function processConversation(
       };
 
     case 'confirmation':
+      console.log('Processing confirmation...');
       if (input.includes('yes') || input.includes('confirm') || input.includes('book') || 
           input.includes('schedule') || input.includes('okay') || input.includes('sure') ||
           input.includes('correct') || input.includes('right')) {
@@ -597,6 +645,7 @@ async function processConversation(
         }
 
         // Book the appointment
+        console.log('Booking appointment...');
         const appointmentResult = await bookAppointment(supabase, {
           clinic_id: context.clinicId,
           department_id: state.data.departmentId!,
@@ -609,6 +658,8 @@ async function processConversation(
           status: 'pending',
           notes: `Booked via AI voice agent on ${new Date().toISOString()}`
         });
+
+        console.log('Appointment booking result:', appointmentResult);
 
         if (!appointmentResult.success) {
           console.error('Appointment booking error:', appointmentResult.error);
@@ -685,6 +736,7 @@ async function processConversation(
 // Enhanced database operations
 async function fetchDepartments(supabase: any, clinicId: string): Promise<Department[]> {
   try {
+    console.log('Fetching departments for clinic ID:', clinicId);
     const { data, error } = await supabase
       .from('departments')
       .select('id, name, description, is_active')
@@ -692,7 +744,12 @@ async function fetchDepartments(supabase: any, clinicId: string): Promise<Depart
       .eq('is_active', true)
       .order('name');
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching departments:', error);
+      throw error;
+    }
+    
+    console.log('Departments fetched successfully:', data?.length || 0, 'departments');
     return data || [];
   } catch (error) {
     console.error('Error fetching departments:', error);
@@ -702,6 +759,7 @@ async function fetchDepartments(supabase: any, clinicId: string): Promise<Depart
 
 async function fetchDoctorsByDepartment(supabase: any, clinicId: string, departmentId: string): Promise<Doctor[]> {
   try {
+    console.log('Fetching doctors for clinic ID:', clinicId, 'department ID:', departmentId);
     const { data, error } = await supabase
       .from('doctors')
       .select('id, name, department_id, specialization, available_days, available_times, is_active')
@@ -710,7 +768,12 @@ async function fetchDoctorsByDepartment(supabase: any, clinicId: string, departm
       .eq('is_active', true)
       .order('name');
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching doctors:', error);
+      throw error;
+    }
+    
+    console.log('Doctors fetched successfully:', data?.length || 0, 'doctors');
     return data || [];
   } catch (error) {
     console.error('Error fetching doctors:', error);
@@ -720,6 +783,7 @@ async function fetchDoctorsByDepartment(supabase: any, clinicId: string, departm
 
 async function registerPatient(supabase: any, patientData: any): Promise<{ success: boolean; patient?: any; error?: string }> {
   try {
+    console.log('Registering patient:', patientData.name);
     // For now, we'll just return success with mock data
     // In a real implementation, you'd create a patient record
     const patient = {
@@ -731,6 +795,7 @@ async function registerPatient(supabase: any, patientData: any): Promise<{ succe
       clinicId: patientData.clinicId
     };
 
+    console.log('Patient registered successfully:', patient.id);
     return { success: true, patient };
   } catch (error) {
     console.error('Error registering patient:', error);
@@ -745,6 +810,7 @@ async function checkTimeSlotAvailability(
   time: string
 ): Promise<{ available: boolean; reason?: string }> {
   try {
+    console.log('Checking availability for doctor:', doctorId, 'date:', date, 'time:', time);
     const { data: existingAppointments, error } = await supabase
       .from('appointments')
       .select('id, status')
@@ -755,7 +821,10 @@ async function checkTimeSlotAvailability(
 
     if (error) throw error;
 
-    if (existingAppointments && existingAppointments.length > 0) {
+    const isAvailable = !existingAppointments || existingAppointments.length === 0;
+    console.log('Time slot availability:', isAvailable);
+
+    if (!isAvailable) {
       return { available: false, reason: 'Time slot already booked' };
     }
 
@@ -768,14 +837,19 @@ async function checkTimeSlotAvailability(
 
 async function bookAppointment(supabase: any, appointmentData: any): Promise<{ success: boolean; appointment?: any; error?: string }> {
   try {
+    console.log('Booking appointment with data:', appointmentData);
     const { data, error } = await supabase
       .from('appointments')
       .insert([appointmentData])
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error booking appointment:', error);
+      throw error;
+    }
 
+    console.log('Appointment booked successfully:', data.id);
     return { success: true, appointment: data };
   } catch (error) {
     console.error('Error booking appointment:', error);
@@ -785,6 +859,8 @@ async function bookAppointment(supabase: any, appointmentData: any): Promise<{ s
 
 async function getAvailableTimeSlots(supabase: any, doctorId: string, date: string): Promise<string[]> {
   try {
+    console.log('Getting available time slots for doctor:', doctorId, 'date:', date);
+    
     // Get doctor's available times and days
     const { data: doctor, error: doctorError } = await supabase
       .from('doctors')
@@ -792,11 +868,22 @@ async function getAvailableTimeSlots(supabase: any, doctorId: string, date: stri
       .eq('id', doctorId)
       .single();
 
-    if (doctorError) throw doctorError;
+    if (doctorError) {
+      console.error('Error fetching doctor:', doctorError);
+      throw doctorError;
+    }
+
+    console.log('Doctor availability:', {
+      available_days: doctor?.available_days,
+      available_times: doctor?.available_times
+    });
 
     // Check if the doctor is available on this day
     const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' });
+    console.log('Requested day of week:', dayOfWeek);
+    
     if (!doctor?.available_days?.includes(dayOfWeek)) {
+      console.log('Doctor not available on', dayOfWeek);
       return [];
     }
 
@@ -808,12 +895,18 @@ async function getAvailableTimeSlots(supabase: any, doctorId: string, date: stri
       .eq('appointment_date', date)
       .in('status', ['pending', 'confirmed']);
 
-    if (appointmentsError) throw appointmentsError;
+    if (appointmentsError) {
+      console.error('Error fetching appointments:', appointmentsError);
+      throw appointmentsError;
+    }
+
+    console.log('Existing appointments:', appointments?.map(a => a.appointment_time) || []);
 
     // Filter out booked time slots
     const bookedTimes = appointments?.map((apt: any) => apt.appointment_time) || [];
     const availableSlots = (doctor.available_times || []).filter((time: string) => !bookedTimes.includes(time));
 
+    console.log('Available time slots:', availableSlots);
     return availableSlots.sort();
   } catch (error) {
     console.error('Error fetching available time slots:', error);
@@ -898,237 +991,433 @@ function generateCallSummary(state: ConversationState, appointmentData?: any, pa
   }
 }
 
+// Enhanced name extraction with better parsing
 function extractName(input: string): string {
-  // Enhanced name extraction
-  const words = input.split(' ').filter(word => word.length > 1);
-  const commonWords = ['my', 'name', 'is', 'i\'m', 'im', 'this', 'it\'s', 'its', 'the', 'a', 'an', 'call', 'me'];
-  const nameWords = words.filter(word => !commonWords.includes(word.toLowerCase()));
+  console.log('Extracting name from input:', input);
   
+  // Remove common phrases and words
+  const cleanInput = input
+    .toLowerCase()
+    .replace(/my name is/gi, '')
+    .replace(/i'm/gi, '')
+    .replace(/im/gi, '')
+    .replace(/this is/gi, '')
+    .replace(/it's/gi, '')
+    .replace(/its/gi, '')
+    .replace(/call me/gi, '')
+    .replace(/the name is/gi, '')
+    .trim();
+
+  // Split into words and filter out common words
+  const words = cleanInput.split(/\s+/).filter(word => {
+    const commonWords = ['my', 'name', 'is', 'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'];
+    return word.length > 1 && !commonWords.includes(word.toLowerCase());
+  });
+
   // Take first two meaningful words as name
-  const extractedName = nameWords.slice(0, 2).join(' ');
-  return extractedName || input.trim();
+  const extractedName = words.slice(0, 2).join(' ');
+  
+  // Capitalize first letter of each word
+  const formattedName = extractedName
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+
+  console.log('Extracted and formatted name:', formattedName);
+  return formattedName || input.trim();
 }
 
+// Enhanced phone number extraction
 function extractPhoneNumber(input: string): string | null {
-  // Remove all non-digit characters except + and spaces
-  const cleaned = input.replace(/[^\d\+\s]/g, '');
+  console.log('Extracting phone number from input:', input);
   
-  // Extract digits only
+  // Remove all non-digit characters except + and spaces for initial cleaning
+  const cleaned = input.replace(/[^\d\+\s\-\(\)]/g, '');
+  
+  // Extract just digits
   const digits = cleaned.replace(/[^\d]/g, '');
+  
+  console.log('Extracted digits:', digits);
   
   // Check if we have a valid phone number (10-15 digits)
   if (digits.length >= 10 && digits.length <= 15) {
-    // Format as a standard phone number
+    let formattedNumber;
+    
     if (digits.length === 10) {
-      return `+1${digits}`;
+      // US number without country code
+      formattedNumber = `+1${digits}`;
     } else if (digits.length === 11 && digits.startsWith('1')) {
-      return `+${digits}`;
+      // US number with country code
+      formattedNumber = `+${digits}`;
     } else {
-      return `+${digits}`;
+      // International number
+      formattedNumber = `+${digits}`;
     }
+    
+    console.log('Formatted phone number:', formattedNumber);
+    return formattedNumber;
   }
   
+  console.log('Invalid phone number length:', digits.length);
   return null;
 }
 
+// Enhanced email extraction
 function extractEmail(input: string): string | null {
-  // Simple email extraction
+  console.log('Extracting email from input:', input);
+  
+  // Standard email regex
   const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
   const match = input.match(emailRegex);
   
   if (match) {
-    return match[0].toLowerCase();
+    const email = match[0].toLowerCase();
+    console.log('Found email via regex:', email);
+    return email;
   }
   
-  // Try to handle spelled out emails
+  // Handle spelled out emails (e.g., "john at gmail dot com")
   const spokenEmail = input.toLowerCase()
     .replace(/\s+at\s+/g, '@')
     .replace(/\s+dot\s+/g, '.')
     .replace(/\s+/g, '');
   
   if (emailRegex.test(spokenEmail)) {
+    console.log('Found email via spoken format:', spokenEmail);
     return spokenEmail;
   }
   
+  console.log('No valid email found');
   return null;
 }
 
+// Enhanced fuzzy matching with better similarity scoring
 function findBestMatch(input: string, items: any[], field: string): any {
-  const inputLower = input.toLowerCase();
+  console.log('Finding best match for input:', input, 'in field:', field);
+  console.log('Available items:', items.map(item => item[field]));
   
-  // Exact match
+  const inputLower = input.toLowerCase().trim();
+  
+  // Exact match (highest priority)
   for (const item of items) {
     if (item[field].toLowerCase() === inputLower) {
+      console.log('Found exact match:', item[field]);
       return item;
     }
   }
   
-  // Partial match
+  // Partial match - input contains item name or vice versa
   for (const item of items) {
-    if (item[field].toLowerCase().includes(inputLower) || inputLower.includes(item[field].toLowerCase())) {
+    const itemName = item[field].toLowerCase();
+    if (itemName.includes(inputLower) || inputLower.includes(itemName)) {
+      console.log('Found partial match:', item[field]);
       return item;
     }
   }
   
-  // Word match
-  const inputWords = inputLower.split(' ');
+  // Word-by-word match
+  const inputWords = inputLower.split(/\s+/);
   for (const item of items) {
-    const itemWords = item[field].toLowerCase().split(' ');
+    const itemWords = item[field].toLowerCase().split(/\s+/);
     for (const inputWord of inputWords) {
       for (const itemWord of itemWords) {
         if (inputWord === itemWord && inputWord.length > 2) {
+          console.log('Found word match:', item[field], 'via word:', inputWord);
           return item;
         }
       }
     }
   }
   
+  // Fuzzy match using Levenshtein distance for close matches
+  let bestMatch = null;
+  let bestScore = 0;
+  
+  for (const item of items) {
+    const itemName = item[field].toLowerCase();
+    const similarity = calculateSimilarity(inputLower, itemName);
+    
+    if (similarity > 0.6 && similarity > bestScore) { // 60% similarity threshold
+      bestScore = similarity;
+      bestMatch = item;
+    }
+  }
+  
+  if (bestMatch) {
+    console.log('Found fuzzy match:', bestMatch[field], 'with similarity:', bestScore);
+    return bestMatch;
+  }
+  
+  console.log('No match found');
   return null;
 }
 
+// Calculate string similarity using Levenshtein distance
+function calculateSimilarity(str1: string, str2: string): number {
+  const len1 = str1.length;
+  const len2 = str2.length;
+  
+  if (len1 === 0) return len2 === 0 ? 1 : 0;
+  if (len2 === 0) return 0;
+  
+  const matrix = Array(len2 + 1).fill(null).map(() => Array(len1 + 1).fill(null));
+  
+  for (let i = 0; i <= len1; i++) matrix[0][i] = i;
+  for (let j = 0; j <= len2; j++) matrix[j][0] = j;
+  
+  for (let j = 1; j <= len2; j++) {
+    for (let i = 1; i <= len1; i++) {
+      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[j][i] = Math.min(
+        matrix[j - 1][i] + 1,     // deletion
+        matrix[j][i - 1] + 1,     // insertion
+        matrix[j - 1][i - 1] + cost // substitution
+      );
+    }
+  }
+  
+  const maxLen = Math.max(len1, len2);
+  return (maxLen - matrix[len2][len1]) / maxLen;
+}
+
+// Enhanced time matching with better natural language processing
 function findBestTimeMatch(input: string, availableSlots: string[]): string | null {
-  const inputLower = input.toLowerCase();
+  console.log('Finding best time match for input:', input);
+  console.log('Available slots:', availableSlots);
   
-  // Direct time match (e.g., "2:30", "14:30", "2 30")
-  const timeRegex = /(\d{1,2})[:\s]?(\d{2})?/;
-  const match = inputLower.match(timeRegex);
+  const inputLower = input.toLowerCase().trim();
   
-  if (match) {
-    let hour = parseInt(match[1]);
-    const minute = match[2] ? parseInt(match[2]) : 0;
-    
-    // Handle AM/PM
-    if (inputLower.includes('pm') && hour < 12) {
-      hour += 12;
-    } else if (inputLower.includes('am') && hour === 12) {
-      hour = 0;
-    }
-    
-    const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-    
-    // Find exact match
-    if (availableSlots.includes(timeString)) {
-      return timeString;
-    }
-    
-    // Find closest match
-    const targetMinutes = hour * 60 + minute;
-    let closestSlot = null;
-    let closestDiff = Infinity;
-    
-    for (const slot of availableSlots) {
-      const [slotHour, slotMinute] = slot.split(':').map(Number);
-      const slotMinutes = slotHour * 60 + slotMinute;
-      const diff = Math.abs(targetMinutes - slotMinutes);
+  // Enhanced time parsing patterns
+  const timePatterns = [
+    /(\d{1,2})[:\s](\d{2})/,           // "2:30", "14:30", "2 30"
+    /(\d{1,2})\s*(am|pm)/,             // "2pm", "10 am"
+    /(\d{1,2})[:\s](\d{2})\s*(am|pm)/, // "2:30pm", "10:15 am"
+    /(\d{1,2})\s*o'?clock/,            // "2 oclock", "3 o'clock"
+  ];
+  
+  for (const pattern of timePatterns) {
+    const match = inputLower.match(pattern);
+    if (match) {
+      let hour = parseInt(match[1]);
+      let minute = 0;
       
-      if (diff < closestDiff && diff <= 30) { // Within 30 minutes
-        closestDiff = diff;
-        closestSlot = slot;
+      if (match[2] && !isNaN(parseInt(match[2]))) {
+        minute = parseInt(match[2]);
+      }
+      
+      // Handle AM/PM
+      const ampm = match[3] || (inputLower.includes('pm') ? 'pm' : inputLower.includes('am') ? 'am' : null);
+      
+      if (ampm === 'pm' && hour < 12) {
+        hour += 12;
+      } else if (ampm === 'am' && hour === 12) {
+        hour = 0;
+      }
+      
+      const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      console.log('Parsed time string:', timeString);
+      
+      // Find exact match
+      if (availableSlots.includes(timeString)) {
+        console.log('Found exact time match:', timeString);
+        return timeString;
+      }
+      
+      // Find closest match within 30 minutes
+      const targetMinutes = hour * 60 + minute;
+      let closestSlot = null;
+      let closestDiff = Infinity;
+      
+      for (const slot of availableSlots) {
+        const [slotHour, slotMinute] = slot.split(':').map(Number);
+        const slotMinutes = slotHour * 60 + slotMinute;
+        const diff = Math.abs(targetMinutes - slotMinutes);
+        
+        if (diff < closestDiff && diff <= 30) { // Within 30 minutes
+          closestDiff = diff;
+          closestSlot = slot;
+        }
+      }
+      
+      if (closestSlot) {
+        console.log('Found closest time match:', closestSlot, 'with difference:', closestDiff, 'minutes');
+        return closestSlot;
       }
     }
-    
-    return closestSlot;
   }
   
-  // Handle relative times
-  if (inputLower.includes('morning')) {
-    return availableSlots.find(slot => {
+  // Handle relative time expressions
+  const relativeTimeMap = {
+    'morning': (slots: string[]) => slots.find(slot => {
       const hour = parseInt(slot.split(':')[0]);
       return hour >= 8 && hour < 12;
-    }) || null;
-  }
-  
-  if (inputLower.includes('afternoon')) {
-    return availableSlots.find(slot => {
+    }),
+    'afternoon': (slots: string[]) => slots.find(slot => {
       const hour = parseInt(slot.split(':')[0]);
       return hour >= 12 && hour < 17;
-    }) || null;
-  }
-  
-  if (inputLower.includes('evening')) {
-    return availableSlots.find(slot => {
+    }),
+    'evening': (slots: string[]) => slots.find(slot => {
       const hour = parseInt(slot.split(':')[0]);
-      return hour >= 17;
-    }) || null;
+      return hour >= 17 && hour < 21;
+    }),
+    'noon': (slots: string[]) => slots.find(slot => slot.startsWith('12:')),
+    'midnight': (slots: string[]) => slots.find(slot => slot.startsWith('00:')),
+  };
+  
+  for (const [timePhrase, finder] of Object.entries(relativeTimeMap)) {
+    if (inputLower.includes(timePhrase)) {
+      const match = finder(availableSlots);
+      if (match) {
+        console.log('Found relative time match:', match, 'for phrase:', timePhrase);
+        return match;
+      }
+    }
   }
   
-  // Try exact string match
+  // Try fuzzy matching with available slots
   for (const slot of availableSlots) {
-    if (inputLower.includes(slot) || slot.includes(inputLower)) {
+    const formattedSlot = formatTime(slot).toLowerCase();
+    if (inputLower.includes(slot) || formattedSlot.includes(inputLower) || 
+        calculateSimilarity(inputLower, formattedSlot) > 0.7) {
+      console.log('Found fuzzy time match:', slot);
       return slot;
     }
   }
   
+  console.log('No time match found');
   return null;
 }
 
+// Enhanced date parsing with comprehensive natural language support
 function parseDate(input: string): string | null {
+  console.log('Parsing date from input:', input);
+  
   const inputLower = input.toLowerCase().trim();
   const today = new Date();
   
   // Handle relative dates
-  if (inputLower.includes('today')) {
-    return today.toISOString().split('T')[0];
+  const relativeDates = {
+    'today': () => {
+      const date = new Date(today);
+      return date.toISOString().split('T')[0];
+    },
+    'tomorrow': () => {
+      const date = new Date(today);
+      date.setDate(date.getDate() + 1);
+      return date.toISOString().split('T')[0];
+    },
+    'day after tomorrow': () => {
+      const date = new Date(today);
+      date.setDate(date.getDate() + 2);
+      return date.toISOString().split('T')[0];
+    },
+    'next week': () => {
+      const date = new Date(today);
+      date.setDate(date.getDate() + 7);
+      return date.toISOString().split('T')[0];
+    },
+    'in a week': () => {
+      const date = new Date(today);
+      date.setDate(date.getDate() + 7);
+      return date.toISOString().split('T')[0];
+    },
+  };
+  
+  for (const [phrase, dateFunc] of Object.entries(relativeDates)) {
+    if (inputLower.includes(phrase)) {
+      const result = dateFunc();
+      console.log('Found relative date:', result, 'for phrase:', phrase);
+      return result;
+    }
   }
   
-  if (inputLower.includes('tomorrow')) {
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
+  // Handle "in X days" pattern
+  const inDaysMatch = inputLower.match(/in\s+(\d+)\s+days?/);
+  if (inDaysMatch) {
+    const days = parseInt(inDaysMatch[1]);
+    const date = new Date(today);
+    date.setDate(date.getDate() + days);
+    const result = date.toISOString().split('T')[0];
+    console.log('Found "in X days" date:', result);
+    return result;
   }
   
-  if (inputLower.includes('next week')) {
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    return nextWeek.toISOString().split('T')[0];
-  }
-  
-  // Handle day names
+  // Handle day names with "next" or "this"
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayAbbreviations = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  
   for (let i = 0; i < days.length; i++) {
-    if (inputLower.includes(days[i])) {
+    const fullDay = days[i];
+    const abbrevDay = dayAbbreviations[i];
+    
+    if (inputLower.includes(fullDay) || inputLower.includes(abbrevDay)) {
       const targetDay = new Date(today);
       const currentDay = today.getDay();
       let daysToAdd = i - currentDay;
       
+      // If the day has passed this week, go to next week
       if (daysToAdd <= 0) {
-        daysToAdd += 7; // Next week
+        daysToAdd += 7;
+      }
+      
+      // Handle "next" explicitly
+      if (inputLower.includes('next')) {
+        daysToAdd += 7;
       }
       
       targetDay.setDate(today.getDate() + daysToAdd);
-      return targetDay.toISOString().split('T')[0];
+      const result = targetDay.toISOString().split('T')[0];
+      console.log('Found day name date:', result, 'for day:', fullDay);
+      return result;
     }
   }
   
-  // Handle month names and dates
+  // Handle month names with dates
   const months = [
     'january', 'february', 'march', 'april', 'may', 'june',
     'july', 'august', 'september', 'october', 'november', 'december'
   ];
+  const monthAbbreviations = [
+    'jan', 'feb', 'mar', 'apr', 'may', 'jun',
+    'jul', 'aug', 'sep', 'oct', 'nov', 'dec'
+  ];
   
   for (let i = 0; i < months.length; i++) {
-    if (inputLower.includes(months[i])) {
-      const dayMatch = inputLower.match(/(\d{1,2})/);
-      if (dayMatch) {
-        const day = parseInt(dayMatch[1]);
-        const year = today.getFullYear();
-        const date = new Date(year, i, day);
-        
-        // If the date is in the past, assume next year
-        if (date < today) {
-          date.setFullYear(year + 1);
+    const fullMonth = months[i];
+    const abbrevMonth = monthAbbreviations[i];
+    
+    if (inputLower.includes(fullMonth) || inputLower.includes(abbrevMonth)) {
+      // Look for day number
+      const dayMatches = input.match(/(\d{1,2})(st|nd|rd|th)?/g);
+      if (dayMatches) {
+        for (const dayMatch of dayMatches) {
+          const day = parseInt(dayMatch.replace(/[^\d]/g, ''));
+          if (day >= 1 && day <= 31) {
+            let year = today.getFullYear();
+            const date = new Date(year, i, day);
+            
+            // If the date is in the past, assume next year
+            if (date < today) {
+              year += 1;
+              date.setFullYear(year);
+            }
+            
+            const result = date.toISOString().split('T')[0];
+            console.log('Found month/day date:', result, 'for month:', fullMonth, 'day:', day);
+            return result;
+          }
         }
-        
-        return date.toISOString().split('T')[0];
       }
     }
   }
   
-  // Try to parse various date formats
+  // Handle various date formats
   const dateFormats = [
-    /(\d{1,2})\/(\d{1,2})\/(\d{4})/,  // MM/DD/YYYY
-    /(\d{1,2})-(\d{1,2})-(\d{4})/,   // MM-DD-YYYY
-    /(\d{4})-(\d{1,2})-(\d{1,2})/,   // YYYY-MM-DD
+    /(\d{1,2})\/(\d{1,2})\/(\d{4})/,     // MM/DD/YYYY
+    /(\d{1,2})-(\d{1,2})-(\d{4})/,      // MM-DD-YYYY
+    /(\d{4})-(\d{1,2})-(\d{1,2})/,      // YYYY-MM-DD
+    /(\d{1,2})\/(\d{1,2})\/(\d{2})/,    // MM/DD/YY
+    /(\d{1,2})-(\d{1,2})-(\d{2})/,      // MM-DD-YY
   ];
   
   for (const format of dateFormats) {
@@ -1138,15 +1427,21 @@ function parseDate(input: string): string | null {
       
       if (format === dateFormats[2]) { // YYYY-MM-DD
         [, year, month, day] = match;
+      } else if (format === dateFormats[3] || format === dateFormats[4]) { // YY formats
+        [, month, day, year] = match;
+        year = parseInt(year) + (parseInt(year) < 50 ? 2000 : 1900); // Y2K handling
       } else { // MM/DD/YYYY or MM-DD-YYYY
         [, month, day, year] = match;
       }
       
       const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      return date.toISOString().split('T')[0];
+      const result = date.toISOString().split('T')[0];
+      console.log('Found formatted date:', result);
+      return result;
     }
   }
   
+  console.log('No valid date found');
   return null;
 }
 
