@@ -26,6 +26,11 @@ export function AIVoiceOrb({
   const [response, setResponse] = useState('');
   const [conversationState, setConversationState] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [conversationHistory, setConversationHistory] = useState<Array<{
+    type: 'user' | 'ai';
+    text: string;
+    timestamp: Date;
+  }>>([]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -94,18 +99,13 @@ export function AIVoiceOrb({
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
-            userInput: '',
+            userInput: '', // Empty input triggers greeting
             context: {
               clinicId,
               clinicName,
               sessionId: sessionIdRef.current,
               language: 'en'
-            },
-            config: {
-              openaiApiKey: import.meta.env.VITE_OPENAI_API_KEY,
-              elevenLabsApiKey: import.meta.env.VITE_ELEVENLABS_API_KEY,
-              elevenLabsVoiceId: import.meta.env.VITE_ELEVENLABS_VOICE_ID,
-            },
+            }
           }),
         }
       );
@@ -117,6 +117,13 @@ export function AIVoiceOrb({
       const result = await response.json();
       setResponse(result.text);
       setConversationState(result.conversationState);
+      
+      // Add to conversation history
+      setConversationHistory([{
+        type: 'ai',
+        text: result.text,
+        timestamp: new Date()
+      }]);
       
       if (result.audioUrl) {
         await playAudio(result.audioUrl);
@@ -173,30 +180,7 @@ export function AIVoiceOrb({
       const arrayBuffer = await audioBlob.arrayBuffer();
       const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
-      // Transcribe with OpenAI Whisper
-      const transcriptionResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
-        },
-        body: (() => {
-          const formData = new FormData();
-          formData.append('file', audioBlob, 'audio.webm');
-          formData.append('model', 'whisper-1');
-          formData.append('language', 'en');
-          return formData;
-        })(),
-      });
-
-      if (!transcriptionResponse.ok) {
-        throw new Error('Transcription failed');
-      }
-
-      const transcriptionResult = await transcriptionResponse.json();
-      const userInput = transcriptionResult.text;
-      setTranscript(userInput);
-
-      // Process with AI
+      // Send audio to backend for transcription and processing
       const aiResponse = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-voice-chat`,
         {
@@ -206,19 +190,14 @@ export function AIVoiceOrb({
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
-            userInput,
+            audioData: base64Audio,
             context: {
               clinicId,
               clinicName,
               conversationState,
               sessionId: sessionIdRef.current,
               language: 'en'
-            },
-            config: {
-              openaiApiKey: import.meta.env.VITE_OPENAI_API_KEY,
-              elevenLabsApiKey: import.meta.env.VITE_ELEVENLABS_API_KEY,
-              elevenLabsVoiceId: import.meta.env.VITE_ELEVENLABS_VOICE_ID,
-            },
+            }
           }),
         }
       );
@@ -228,8 +207,20 @@ export function AIVoiceOrb({
       }
 
       const result = await aiResponse.json();
+      
+      // Extract transcript from the conversation flow
+      // The backend will handle transcription internally
+      const userText = result.userInput || 'Audio processed';
+      setTranscript(userText);
       setResponse(result.text);
       setConversationState(result.conversationState);
+
+      // Add to conversation history
+      setConversationHistory(prev => [
+        ...prev,
+        { type: 'user', text: userText, timestamp: new Date() },
+        { type: 'ai', text: result.text, timestamp: new Date() }
+      ]);
 
       // Handle completion events
       if (result.appointmentData && onAppointmentBooked) {
@@ -317,6 +308,10 @@ export function AIVoiceOrb({
     setIsProcessing(false);
     setIsSpeaking(false);
     setAudioLevel(0);
+    setConversationHistory([]);
+    setTranscript('');
+    setResponse('');
+    setConversationState(null);
   };
 
   // Orb animation
@@ -392,7 +387,7 @@ export function AIVoiceOrb({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="p-6 border-b border-slate-200">
           <div className="flex items-center justify-between">
@@ -460,8 +455,8 @@ export function AIVoiceOrb({
           </div>
 
           {/* Status Text */}
-          <div className="text-center">
-            <p className="text-sm text-slate-600 mb-4">
+          <div className="text-center mb-4">
+            <p className="text-sm text-slate-600">
               {!isListening && !isProcessing && !isSpeaking 
                 ? 'Click the microphone to speak'
                 : isListening 
@@ -473,33 +468,38 @@ export function AIVoiceOrb({
                 : 'Ready to help you'
               }
             </p>
-
-            {/* Transcript */}
-            {transcript && (
-              <div className="bg-blue-50 rounded-lg p-3 mb-4">
-                <p className="text-sm text-blue-800">
-                  <strong>You:</strong> {transcript}
-                </p>
-              </div>
-            )}
-
-            {/* Response */}
-            {response && (
-              <div className="bg-emerald-50 rounded-lg p-3 mb-4">
-                <p className="text-sm text-emerald-800">
-                  <strong>AI:</strong> {response}
-                </p>
-              </div>
-            )}
-
-            {/* Error */}
-            {error && (
-              <div className="bg-red-50 rounded-lg p-3 mb-4">
-                <p className="text-sm text-red-800">{error}</p>
-              </div>
-            )}
           </div>
+
+          {/* Error */}
+          {error && (
+            <div className="bg-red-50 rounded-lg p-3 mb-4">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
         </div>
+
+        {/* Conversation History */}
+        {conversationHistory.length > 0 && (
+          <div className="border-t border-slate-200 p-4 max-h-64 overflow-y-auto">
+            <h3 className="text-sm font-medium text-slate-700 mb-3">Conversation</h3>
+            <div className="space-y-3">
+              {conversationHistory.map((message, index) => (
+                <div key={index} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-xs rounded-lg p-3 ${
+                    message.type === 'user' 
+                      ? 'bg-blue-100 text-blue-900' 
+                      : 'bg-emerald-100 text-emerald-900'
+                  }`}>
+                    <div className="text-xs mb-1 opacity-75">
+                      {message.type === 'user' ? 'You' : 'MediZap AI'}
+                    </div>
+                    <div className="text-sm">{message.text}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
