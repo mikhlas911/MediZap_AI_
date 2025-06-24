@@ -85,7 +85,7 @@ export function AIVoiceOrb({
       // Pass clinic context as dynamic variables
       const dynamicVariables = {
         clinicId: clinicId,
-        clinicName: clinicName || 'Unknown Clinic',
+        ClinicName: clinicName || 'Unknown Clinic',
         context: 'patient_booking',
         timestamp: new Date().toISOString()
       };
