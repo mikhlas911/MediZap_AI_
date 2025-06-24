@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, AlertCircle, UserPlus, Users } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertCircle, Users, User } from 'lucide-react';
 import { useAuth } from './AuthProvider';
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
-  onSwitchToGuestSignup: () => void;
+  onSwitchToGuestAccess: () => void;
   onSwitchToForgotPassword: () => void;
 }
 
-export function LoginForm({ onSwitchToRegister, onSwitchToGuestSignup, onSwitchToForgotPassword }: LoginFormProps) {
+export function LoginForm({ onSwitchToRegister, onSwitchToGuestAccess, onSwitchToForgotPassword }: LoginFormProps) {
   const { signIn } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
@@ -166,23 +166,23 @@ export function LoginForm({ onSwitchToRegister, onSwitchToGuestSignup, onSwitchT
             <div className="border-t border-slate-200 pt-4">
               <div className="text-sm text-slate-600 space-y-3">
                 <div className="bg-gradient-to-r from-sky-50 to-emerald-50 rounded-lg p-4 border border-sky-200">
-                  <h4 className="font-medium text-slate-800 mb-2">New to MediZap AI?</h4>
-                  <div className="space-y-2">
+                  <h4 className="font-medium text-slate-800 mb-3">New to MediZap AI?</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <button
                       type="button"
-                      onClick={onSwitchToRegister}
-                      className="w-full inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-sky-600 to-emerald-600 text-white rounded-lg hover:from-sky-700 hover:to-emerald-700 transition-all duration-200 text-sm font-medium"
+                      onClick={onSwitchToGuestAccess}
+                      className="inline-flex items-center justify-center px-4 py-3 bg-gradient-to-r from-emerald-600 to-sky-600 text-white rounded-lg hover:from-emerald-700 hover:to-sky-700 transition-all duration-200 text-sm font-medium"
                     >
-                      <Users className="h-4 w-4 mr-2" />
-                      Register Your Clinic
+                      <User className="h-4 w-4 mr-2" />
+                      Guest Access
                     </button>
                     <button
                       type="button"
-                      onClick={onSwitchToGuestSignup}
-                      className="w-full inline-flex items-center justify-center px-4 py-2 border border-emerald-300 text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors text-sm font-medium"
+                      onClick={onSwitchToRegister}
+                      className="inline-flex items-center justify-center px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium"
                     >
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Create Patient Account
+                      <Users className="h-4 w-4 mr-2" />
+                      Register Clinic
                     </button>
                   </div>
                 </div>

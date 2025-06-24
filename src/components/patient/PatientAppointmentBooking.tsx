@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Calendar, Clock, User, Phone, Mail, Mic, MessageSquare, UserPlus, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calendar, Clock, User, Phone, Mail, Mic, MessageSquare, UserPlus, Zap, Building2, MapPin, ChevronRight } from 'lucide-react';
 import { VoiceAgentModal } from '../voice/VoiceAgentModal';
 import { GuestSignupForm } from '../auth/GuestSignupForm';
+import { TraditionalBookingForm } from './TraditionalBookingForm';
 import { useDepartments, useDoctors } from '../../hooks/useSupabaseData';
-import { supabase } from '../../lib/supabase';
 
 interface PatientAppointmentBookingProps {
   clinicId: string;
@@ -15,36 +15,49 @@ interface PatientAppointmentBookingProps {
     email?: string;
     phone?: string;
   };
+  bookingMethod?: 'voice' | 'form';
 }
 
 export function PatientAppointmentBooking({
   clinicId,
   clinicName,
   userType = 'guest',
-  patientData
+  patientData,
+  bookingMethod
 }: PatientAppointmentBookingProps) {
   const [showVoiceAgent, setShowVoiceAgent] = useState(false);
   const [showGuestSignup, setShowGuestSignup] = useState(false);
-  const [bookingMethod, setBookingMethod] = useState<'form' | 'voice' | null>(null);
+  const [showTraditionalForm, setShowTraditionalForm] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState<'voice' | 'form' | null>(bookingMethod || null);
   const [appointmentData, setAppointmentData] = useState<any>(null);
   const [registeredPatientData, setRegisteredPatientData] = useState<any>(null);
 
   const { departments } = useDepartments();
   const { doctors } = useDoctors();
 
+  // Auto-start based on URL parameter
+  useEffect(() => {
+    if (bookingMethod === 'voice') {
+      handleVoiceBooking();
+    } else if (bookingMethod === 'form') {
+      handleFormBooking();
+    }
+  }, [bookingMethod]);
+
   const handleVoiceBooking = () => {
-    setBookingMethod('voice');
+    setSelectedMethod('voice');
     setShowVoiceAgent(true);
   };
 
   const handleFormBooking = () => {
-    setBookingMethod('form');
-    // Implement form booking logic
+    setSelectedMethod('form');
+    setShowTraditionalForm(true);
   };
 
   const handleAppointmentBooked = (appointment: any) => {
     setAppointmentData(appointment);
     setShowVoiceAgent(false);
+    setShowTraditionalForm(false);
     
     // If guest user, prompt for account creation
     if (userType === 'guest' && !registeredPatientData) {
@@ -54,7 +67,6 @@ export function PatientAppointmentBooking({
 
   const handlePatientRegistered = (patient: any) => {
     setRegisteredPatientData(patient);
-    // Don't show signup form if patient was registered via voice
   };
 
   const handleGuestRegistered = (userData: any) => {
@@ -103,7 +115,10 @@ export function PatientAppointmentBooking({
             <h1 className="text-3xl font-bold text-slate-800">MediZap AI</h1>
           </div>
           <div className="bg-white rounded-lg p-6 shadow-sm border border-slate-200 mb-6">
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">{clinicName}</h2>
+            <div className="flex items-center justify-center space-x-3 mb-3">
+              <Building2 className="h-6 w-6 text-slate-600" />
+              <h2 className="text-2xl font-bold text-slate-800">{clinicName}</h2>
+            </div>
             <p className="text-slate-600 mb-4">AI-Powered Appointment Booking</p>
             
             {/* User Type Badge */}
@@ -172,8 +187,8 @@ export function PatientAppointmentBooking({
           </div>
         )}
 
-        {/* Booking Methods */}
-        {!appointmentData && (
+        {/* Booking Methods - Only show if no method selected */}
+        {!selectedMethod && !appointmentData && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Voice Booking */}
             <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-8">
@@ -319,10 +334,28 @@ export function PatientAppointmentBooking({
       {/* Voice Agent Modal */}
       <VoiceAgentModal
         isOpen={showVoiceAgent}
-        onClose={() => setShowVoiceAgent(false)}
+        onClose={() => {
+          setShowVoiceAgent(false);
+          setSelectedMethod(null);
+        }}
         userType={userType}
         patientName={patientData?.name}
         clinicId={clinicId}
+        onAppointmentBooked={handleAppointmentBooked}
+        onPatientRegistered={handlePatientRegistered}
+      />
+
+      {/* Traditional Booking Form Modal */}
+      <TraditionalBookingForm
+        isOpen={showTraditionalForm}
+        onClose={() => {
+          setShowTraditionalForm(false);
+          setSelectedMethod(null);
+        }}
+        clinicId={clinicId}
+        clinicName={clinicName}
+        userType={userType}
+        patientData={patientData}
         onAppointmentBooked={handleAppointmentBooked}
         onPatientRegistered={handlePatientRegistered}
       />

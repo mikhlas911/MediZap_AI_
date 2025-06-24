@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { LoginForm } from './LoginForm';
 import { ClinicRegistrationForm } from './ClinicRegistrationForm';
-import { GuestSignupForm } from './GuestSignupForm';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
+import { GuestAccessForm } from './GuestAccessForm';
 
-type AuthMode = 'login' | 'register' | 'guest-signup' | 'forgot-password';
+type AuthMode = 'login' | 'register' | 'guest-access' | 'forgot-password';
 
 export function AuthPage() {
   const [mode, setMode] = useState<AuthMode>('login');
@@ -15,7 +15,7 @@ export function AuthPage() {
         {mode === 'login' && (
           <LoginForm
             onSwitchToRegister={() => setMode('register')}
-            onSwitchToGuestSignup={() => setMode('guest-signup')}
+            onSwitchToGuestAccess={() => setMode('guest-access')}
             onSwitchToForgotPassword={() => setMode('forgot-password')}
           />
         )}
@@ -24,8 +24,8 @@ export function AuthPage() {
             onSwitchToLogin={() => setMode('login')}
           />
         )}
-        {mode === 'guest-signup' && (
-          <GuestSignupForm
+        {mode === 'guest-access' && (
+          <GuestAccessForm
             onSwitchToLogin={() => setMode('login')}
           />
         )}

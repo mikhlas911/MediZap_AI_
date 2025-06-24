@@ -1,5 +1,37 @@
-For all designs I ask you to make, have them be beautiful, not cookie cutter. Make webpages that are fully featured and worthy for production.
+MediZap AI – Project Knowledge Base (Summary)
+MediZap AI is a web platform for clinics, supporting appointment management, walk-in registrations, doctor lists, and an AI voice agent for patient interactions. The system is designed for multi-clinic use, with a focus on a seamless patient and admin experience.
 
-By default, this template supports JSX syntax with Tailwind CSS classes, React hooks, and Lucide React for icons. Do not install other packages for UI themes, icons, etc unless absolutely necessary or I request them.
+Core Features
+Appointments & Walk-ins: Patients can book, reschedule, or cancel appointments and register walk-ins easily.
 
-Use icons from lucide-react for logos.
+Multi-Clinic Support: Patients select a clinic via dropdown/search; admins manage their own clinic’s data.
+
+User Management: Guest users auto-register as patients on first booking; patient ID sent via SMS/email for future use; future logins via patient ID, name+mobile, or OTP.
+
+AI Voice Agent: Voice-based booking/registration (English, Hindi, Malayalam), accessible via QR code, with a modern animated UI.
+
+Notifications: SMS/Email for OTPs, confirmations, and reminders.
+
+Security: Role-based access, OTP authentication, and data privacy.
+
+Tech Stack
+Frontend: React.js (mobile-friendly, matches dashboard style)
+
+Backend: Node.js/Express or Python/FastAPI (REST API)
+
+Database: PostgreSQL (Supabase, RLS enabled)
+
+Voice: ElevenLabs (TTS/STT), Whisper ASR, Google TTS
+
+Notifications: MSG91, Twilio, or similar SMS/email services
+
+Typical Workflow
+Admin login: Manages clinic operations.
+
+Patient (guest/login): Enters name & mobile; receives OTP.
+
+AI agent: Guides through booking/registration.
+
+Patient ID sent for future visits.
+
+All actions are secure and clinic-specific.

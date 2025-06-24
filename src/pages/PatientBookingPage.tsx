@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { PatientAppointmentBooking } from '../components/patient/PatientAppointmentBooking';
 import { supabase } from '../lib/supabase';
 import { AlertCircle, Building2 } from 'lucide-react';
 
 export function PatientBookingPage() {
   const { clinicSlug } = useParams();
+  const [searchParams] = useSearchParams();
   const [clinic, setClinic] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Get booking method from URL parameters
+  const bookingMethod = searchParams.get('method') as 'voice' | 'form' | null;
   
   useEffect(() => {
     fetchClinicBySlug();
@@ -80,6 +84,7 @@ export function PatientBookingPage() {
       clinicId={clinic.id}
       clinicName={clinic.name}
       userType="guest"
+      bookingMethod={bookingMethod || undefined}
     />
   );
 }

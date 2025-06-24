@@ -356,6 +356,4 @@ const WalkInsPage = () => {
   );
 };
 
-export default WalkInsPage;
-
 export { WalkInsPage }

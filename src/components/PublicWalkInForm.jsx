@@ -394,6 +394,5 @@ const PublicWalkInForm = () => {
   );
 };
 
-export default PublicWalkInForm;
 
 export { PublicWalkInForm }
