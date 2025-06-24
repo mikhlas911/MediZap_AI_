@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, User, Phone, Mail, Mic, MessageSquare, UserPlus, Zap, Building2, MapPin, ChevronRight } from 'lucide-react';
-import { VoiceAgentModal } from '../voice/VoiceAgentModal';
+import { AIVoiceOrb } from '../voice/AIVoiceOrb';
 import { GuestSignupForm } from '../auth/GuestSignupForm';
 import { TraditionalBookingForm } from './TraditionalBookingForm';
 import { useDepartments, useDoctors } from '../../hooks/useSupabaseData';
@@ -25,7 +25,7 @@ export function PatientAppointmentBooking({
   patientData,
   bookingMethod
 }: PatientAppointmentBookingProps) {
-  const [showVoiceAgent, setShowVoiceAgent] = useState(false);
+  const [showAIVoiceOrb, setShowAIVoiceOrb] = useState(false);
   const [showGuestSignup, setShowGuestSignup] = useState(false);
   const [showTraditionalForm, setShowTraditionalForm] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<'voice' | 'form' | null>(bookingMethod || null);
@@ -46,7 +46,7 @@ export function PatientAppointmentBooking({
 
   const handleVoiceBooking = () => {
     setSelectedMethod('voice');
-    setShowVoiceAgent(true);
+    setShowAIVoiceOrb(true);
   };
 
   const handleFormBooking = () => {
@@ -56,7 +56,7 @@ export function PatientAppointmentBooking({
 
   const handleAppointmentBooked = (appointment: any) => {
     setAppointmentData(appointment);
-    setShowVoiceAgent(false);
+    setShowAIVoiceOrb(false);
     setShowTraditionalForm(false);
     
     // If guest user, prompt for account creation
@@ -331,18 +331,14 @@ export function PatientAppointmentBooking({
         </div>
       </div>
 
-      {/* Voice Agent Modal */}
-      <VoiceAgentModal
-        isOpen={showVoiceAgent}
+      {/* AI Voice Orb Modal */}
+      <AIVoiceOrb
+        isOpen={showAIVoiceOrb}
         onClose={() => {
-          setShowVoiceAgent(false);
+          setShowAIVoiceOrb(false);
           setSelectedMethod(null);
         }}
-        userType={userType}
-        patientName={patientData?.name}
         clinicId={clinicId}
-        onAppointmentBooked={handleAppointmentBooked}
-        onPatientRegistered={handlePatientRegistered}
       />
 
       {/* Traditional Booking Form Modal */}
