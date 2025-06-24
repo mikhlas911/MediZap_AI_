@@ -5,7 +5,7 @@ interface AIVoiceOrbProps {
   isOpen: boolean;
   onClose: () => void;
   clinicId: string;
-  clinicName: string;
+  clinicName?: string;
   onAppointmentBooked?: (appointment: any) => void;
   onWalkinRegistered?: (walkin: any) => void;
 }
@@ -18,376 +18,105 @@ export function AIVoiceOrb({
   onAppointmentBooked,
   onWalkinRegistered
 }: AIVoiceOrbProps) {
-  const [isListening, setIsListening] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [audioLevel, setAudioLevel] = useState(0);
-  const [transcript, setTranscript] = useState('');
-  const [response, setResponse] = useState('');
-  const [conversationState, setConversationState] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [conversationHistory, setConversationHistory] = useState<Array<{
-    type: 'user' | 'ai';
-    text: string;
-    timestamp: Date;
-  }>>([]);
+  const widgetContainerRef = useRef<HTMLDivElement>(null);
+  const scriptLoadedRef = useRef(false);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const animationFrameRef = useRef<number>();
-  const sessionIdRef = useRef<string>(`session_${Date.now()}`);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  // Initialize audio and start with greeting
+  // Load ElevenLabs script when component mounts
   useEffect(() => {
-    if (isOpen) {
-      initializeAudio();
-      startGreeting();
-    } else {
-      cleanup();
+    if (isOpen && !scriptLoadedRef.current) {
+      loadElevenLabsScript();
     }
-
-    return () => cleanup();
   }, [isOpen]);
 
-  const initializeAudio = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 16000
-        } 
-      });
-      
-      streamRef.current = stream;
-      
-      // Create audio context for level monitoring
-      audioContextRef.current = new AudioContext();
-      const source = audioContextRef.current.createMediaStreamSource(stream);
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 256;
-      source.connect(analyserRef.current);
+  // Initialize widget when modal opens
+  useEffect(() => {
+    if (isOpen && scriptLoadedRef.current) {
+      initializeWidget();
+    }
+  }, [isOpen, scriptLoadedRef.current]);
 
-      // Create media recorder
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
-        ? 'audio/webm;codecs=opus' 
-        : 'audio/webm';
-      
-      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
+  // Cleanup when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      cleanup();
+    }
+  }, [isOpen]);
 
+  const loadElevenLabsScript = () => {
+    // Check if script is already loaded
+    if (document.querySelector('script[src*="convai-widget-embed"]')) {
+      scriptLoadedRef.current = true;
+      setIsLoading(false);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/@elevenlabs/convai-widget-embed';
+    script.async = true;
+    script.type = 'text/javascript';
+    
+    script.onload = () => {
+      scriptLoadedRef.current = true;
+      setIsLoading(false);
       setError(null);
-    } catch (error) {
-      console.error('Error initializing audio:', error);
-      setError('Microphone access denied. Please allow microphone access to use voice features.');
-    }
-  };
-
-  const startGreeting = async () => {
-    try {
-      setIsProcessing(true);
-      
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-voice-chat`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({
-            userInput: '', // Empty input triggers greeting
-            context: {
-              clinicId,
-              clinicName,
-              sessionId: sessionIdRef.current,
-              language: 'en'
-            }
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to start conversation');
-      }
-
-      const result = await response.json();
-      setResponse(result.text);
-      setConversationState(result.conversationState);
-      
-      // Add to conversation history
-      setConversationHistory([{
-        type: 'ai',
-        text: result.text,
-        timestamp: new Date()
-      }]);
-      
-      if (result.audioUrl) {
-        await playAudio(result.audioUrl);
-      }
-    } catch (error) {
-      console.error('Error starting greeting:', error);
-      setError('Failed to start conversation. Please try again.');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const startListening = async () => {
-    if (!mediaRecorderRef.current) return;
-
-    setIsListening(true);
-    setTranscript('');
-    setError(null);
-
-    const audioChunks: Blob[] = [];
+    };
     
-    mediaRecorderRef.current.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunks.push(event.data);
-      }
+    script.onerror = () => {
+      setError('Failed to load ElevenLabs voice agent. Please try again.');
+      setIsLoading(false);
     };
 
-    mediaRecorderRef.current.onstop = async () => {
-      const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
-      await processAudio(audioBlob);
-    };
-
-    mediaRecorderRef.current.start();
-    monitorAudioLevel();
+    document.head.appendChild(script);
   };
 
-  const stopListening = () => {
-    if (mediaRecorderRef.current && isListening) {
-      mediaRecorderRef.current.stop();
-      setIsListening(false);
-      setAudioLevel(0);
-      
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    }
-  };
-
-  const processAudio = async (audioBlob: Blob) => {
-    setIsProcessing(true);
+  const initializeWidget = () => {
+    if (!widgetContainerRef.current) return;
 
     try {
-      // Convert audio to base64
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      // Clear any existing widget
+      widgetContainerRef.current.innerHTML = '';
 
-      // Send audio to backend for transcription and processing
-      const aiResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-voice-chat`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({
-            audioData: base64Audio,
-            context: {
-              clinicId,
-              clinicName,
-              conversationState,
-              sessionId: sessionIdRef.current,
-              language: 'en'
-            }
-          }),
-        }
-      );
-
-      if (!aiResponse.ok) {
-        throw new Error('AI processing failed');
-      }
-
-      const result = await aiResponse.json();
+      // Create the ElevenLabs widget element
+      const widget = document.createElement('elevenlabs-convai');
+      widget.setAttribute('agent-id', 'agent_01jy12vvryfnetmjmbe0vby1ec');
       
-      // Extract transcript from the conversation flow
-      // The backend will handle transcription internally
-      const userText = result.userInput || 'Audio processed';
-      setTranscript(userText);
-      setResponse(result.text);
-      setConversationState(result.conversationState);
+      // Add custom styling to make it fit our modal
+      widget.style.width = '100%';
+      widget.style.height = '400px';
+      widget.style.border = 'none';
+      widget.style.borderRadius = '12px';
 
-      // Add to conversation history
-      setConversationHistory(prev => [
-        ...prev,
-        { type: 'user', text: userText, timestamp: new Date() },
-        { type: 'ai', text: result.text, timestamp: new Date() }
-      ]);
+      // Add event listeners for widget events if available
+      widget.addEventListener('conversation-started', () => {
+        console.log('ElevenLabs conversation started');
+      });
 
-      // Handle completion events
-      if (result.appointmentData && onAppointmentBooked) {
-        onAppointmentBooked(result.appointmentData);
-      }
-      
-      if (result.walkinData && onWalkinRegistered) {
-        onWalkinRegistered(result.walkinData);
-      }
+      widget.addEventListener('conversation-ended', () => {
+        console.log('ElevenLabs conversation ended');
+      });
 
-      // Play AI response
-      if (result.audioUrl) {
-        await playAudio(result.audioUrl);
-      }
-
-      // End conversation if needed
-      if (result.shouldEnd) {
-        setTimeout(() => {
-          onClose();
-        }, 2000);
-      }
-
-    } catch (error) {
-      console.error('Error processing audio:', error);
-      setError('Failed to process audio. Please try again.');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const playAudio = async (audioUrl: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      setIsSpeaking(true);
-      
-      const audio = new Audio(audioUrl);
-      
-      audio.onended = () => {
-        setIsSpeaking(false);
-        resolve();
-      };
-      
-      audio.onerror = () => {
-        setIsSpeaking(false);
-        reject(new Error('Audio playback failed'));
-      };
-      
-      audio.play().catch(reject);
-    });
-  };
-
-  const monitorAudioLevel = () => {
-    if (!analyserRef.current) return;
-
-    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-    analyserRef.current.getByteFrequencyData(dataArray);
-    
-    const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
-    const normalizedLevel = Math.min(average / 128, 1);
-    
-    setAudioLevel(normalizedLevel);
-    
-    if (isListening) {
-      animationFrameRef.current = requestAnimationFrame(monitorAudioLevel);
+      // Append widget to container
+      widgetContainerRef.current.appendChild(widget);
+      setError(null);
+    } catch (err) {
+      console.error('Error initializing ElevenLabs widget:', err);
+      setError('Failed to initialize voice agent. Please try again.');
     }
   };
 
   const cleanup = () => {
-    if (mediaRecorderRef.current && isListening) {
-      mediaRecorderRef.current.stop();
+    if (widgetContainerRef.current) {
+      widgetContainerRef.current.innerHTML = '';
     }
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
-
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-    }
-
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-
-    setIsListening(false);
-    setIsProcessing(false);
-    setIsSpeaking(false);
-    setAudioLevel(0);
-    setConversationHistory([]);
-    setTranscript('');
-    setResponse('');
-    setConversationState(null);
   };
-
-  // Orb animation
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !isOpen) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let animationId: number;
-    let frame = 0;
-
-    const animate = () => {
-      const width = canvas.width;
-      const height = canvas.height;
-      const centerX = width / 2;
-      const centerY = height / 2;
-
-      ctx.clearRect(0, 0, width, height);
-
-      // Base orb
-      const baseRadius = Math.min(width, height) * 0.15;
-      let orbRadius = baseRadius;
-      
-      if (isListening) {
-        orbRadius = baseRadius + (audioLevel * 20) + Math.sin(frame * 0.1) * 5;
-      } else if (isProcessing) {
-        orbRadius = baseRadius + Math.sin(frame * 0.2) * 8;
-      } else if (isSpeaking) {
-        orbRadius = baseRadius + Math.sin(frame * 0.15) * 12;
-      }
-
-      // Gradient
-      const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, orbRadius);
-      gradient.addColorStop(0, '#10b981');
-      gradient.addColorStop(0.7, '#059669');
-      gradient.addColorStop(1, '#047857');
-
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, orbRadius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Pulse rings
-      if (isListening || isProcessing || isSpeaking) {
-        for (let i = 0; i < 3; i++) {
-          const ringRadius = orbRadius + (i + 1) * 25 + Math.sin(frame * 0.1 + i) * 10;
-          const opacity = Math.max(0, 0.4 - i * 0.1 - Math.sin(frame * 0.05 + i) * 0.2);
-          
-          ctx.strokeStyle = `rgba(16, 185, 129, ${opacity})`;
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-      }
-
-      frame++;
-      animationId = requestAnimationFrame(animate);
-    };
-
-    animate();
-
-    return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId);
-      }
-    };
-  }, [isOpen, isListening, isProcessing, isSpeaking, audioLevel]);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="p-6 border-b border-slate-200">
           <div className="flex items-center justify-between">
@@ -398,8 +127,10 @@ export function AIVoiceOrb({
                 className="h-8 w-8 object-contain"
               />
               <div>
-                <h2 className="text-lg font-bold text-slate-800">MediZap AI</h2>
-                <p className="text-sm text-slate-600">{clinicName}</p>
+                <h2 className="text-lg font-bold text-slate-800">MediZap AI Voice Assistant</h2>
+                {clinicName && (
+                  <p className="text-sm text-slate-600">{clinicName}</p>
+                )}
               </div>
             </div>
             <button
@@ -411,95 +142,113 @@ export function AIVoiceOrb({
           </div>
         </div>
 
-        {/* Voice Orb */}
-        <div className="p-8 text-center">
-          <div className="relative mb-6">
-            <canvas
-              ref={canvasRef}
-              width={200}
-              height={200}
-              className="mx-auto"
-            />
-            
-            {/* Status overlay */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        {/* Content */}
+        <div className="p-6">
+          {isLoading && (
+            <div className="flex items-center justify-center py-12">
               <div className="text-center">
-                <div className={`text-sm font-medium ${
-                  isProcessing ? 'text-yellow-600' :
-                  isSpeaking ? 'text-blue-600' :
-                  isListening ? 'text-green-600' :
-                  'text-slate-600'
-                }`}>
-                  {isProcessing ? 'Processing...' :
-                   isSpeaking ? 'Speaking' :
-                   isListening ? 'Listening...' :
-                   'Ready'}
-                </div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+                <p className="text-slate-600">Loading AI Voice Assistant...</p>
+                <p className="text-sm text-slate-500 mt-2">Initializing ElevenLabs Conversational AI</p>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Controls */}
-          <div className="flex items-center justify-center space-x-4 mb-6">
-            <button
-              onClick={isListening ? stopListening : startListening}
-              disabled={isProcessing || isSpeaking}
-              className={`p-4 rounded-full transition-all duration-200 ${
-                isListening
-                  ? 'bg-red-500 hover:bg-red-600 text-white'
-                  : 'bg-emerald-500 hover:bg-emerald-600 text-white'
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              {isListening ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-            </button>
-          </div>
-
-          {/* Status Text */}
-          <div className="text-center mb-4">
-            <p className="text-sm text-slate-600">
-              {!isListening && !isProcessing && !isSpeaking 
-                ? 'Click the microphone to speak'
-                : isListening 
-                ? 'Speak clearly...'
-                : isProcessing
-                ? 'Processing your request...'
-                : isSpeaking
-                ? 'AI is responding...'
-                : 'Ready to help you'
-              }
-            </p>
-          </div>
-
-          {/* Error */}
           {error && (
-            <div className="bg-red-50 rounded-lg p-3 mb-4">
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <X className="h-8 w-8 text-red-600" />
+                </div>
+                <h3 className="text-lg font-medium text-slate-800 mb-2">Voice Assistant Error</h3>
+                <p className="text-slate-600 mb-4">{error}</p>
+                <button
+                  onClick={() => {
+                    setError(null);
+                    setIsLoading(true);
+                    loadElevenLabsScript();
+                  }}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!isLoading && !error && (
+            <div className="space-y-4">
+              {/* Instructions */}
+              <div className="bg-gradient-to-r from-emerald-50 to-sky-50 rounded-lg p-4 border border-emerald-200">
+                <div className="flex items-start space-x-3">
+                  <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Mic className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium text-slate-800 mb-1">AI Voice Assistant Ready</h4>
+                    <p className="text-sm text-slate-600 mb-2">
+                      Our advanced AI can help you with:
+                    </p>
+                    <ul className="text-sm text-slate-600 space-y-1">
+                      <li>• Booking appointments with available doctors</li>
+                      <li>• Registering as a walk-in patient</li>
+                      <li>• Answering questions about clinic services</li>
+                      <li>• Providing clinic information and hours</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* ElevenLabs Widget Container */}
+              <div 
+                ref={widgetContainerRef}
+                className="bg-slate-50 rounded-lg border border-slate-200 min-h-[400px] flex items-center justify-center"
+              >
+                {/* Widget will be inserted here */}
+                <div className="text-center text-slate-500">
+                  <Mic className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>Initializing voice interface...</p>
+                </div>
+              </div>
+
+              {/* Features */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                  <h5 className="font-medium text-slate-800 mb-2">Natural Conversation</h5>
+                  <p className="text-slate-600">Speak naturally with our AI assistant. No need for specific commands or keywords.</p>
+                </div>
+                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                  <h5 className="font-medium text-slate-800 mb-2">Multi-Language Support</h5>
+                  <p className="text-slate-600">Communicate in English, Hindi, or Malayalam for your convenience.</p>
+                </div>
+                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                  <h5 className="font-medium text-slate-800 mb-2">Instant Booking</h5>
+                  <p className="text-slate-600">Book appointments instantly with real-time availability checking.</p>
+                </div>
+                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                  <h5 className="font-medium text-slate-800 mb-2">Smart Assistance</h5>
+                  <p className="text-slate-600">Get help with scheduling, rescheduling, and clinic information.</p>
+                </div>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Conversation History */}
-        {conversationHistory.length > 0 && (
-          <div className="border-t border-slate-200 p-4 max-h-64 overflow-y-auto">
-            <h3 className="text-sm font-medium text-slate-700 mb-3">Conversation</h3>
-            <div className="space-y-3">
-              {conversationHistory.map((message, index) => (
-                <div key={index} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-xs rounded-lg p-3 ${
-                    message.type === 'user' 
-                      ? 'bg-blue-100 text-blue-900' 
-                      : 'bg-emerald-100 text-emerald-900'
-                  }`}>
-                    <div className="text-xs mb-1 opacity-75">
-                      {message.type === 'user' ? 'You' : 'MediZap AI'}
-                    </div>
-                    <div className="text-sm">{message.text}</div>
-                  </div>
-                </div>
-              ))}
+        {/* Footer */}
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center space-x-2 text-slate-600">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span>Powered by ElevenLabs Conversational AI</span>
             </div>
+            <button
+              onClick={onClose}
+              className="text-slate-600 hover:text-slate-800 transition-colors"
+            >
+              Close Assistant
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
