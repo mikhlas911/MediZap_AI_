@@ -3,8 +3,10 @@ import { LoginForm } from './LoginForm';
 import { ClinicRegistrationForm } from './ClinicRegistrationForm';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
 import { GuestAccessForm } from './GuestAccessForm';
+import { PatientLoginForm } from './PatientLoginForm';
+import { GuestSignupForm } from './GuestSignupForm';
 
-type AuthMode = 'login' | 'register' | 'guest-access' | 'forgot-password';
+type AuthMode = 'login' | 'register' | 'guest-access' | 'forgot-password' | 'patient-login' | 'patient-signup';
 
 export function AuthPage() {
   const [mode, setMode] = useState<AuthMode>('login');
@@ -17,6 +19,7 @@ export function AuthPage() {
             onSwitchToRegister={() => setMode('register')}
             onSwitchToGuestAccess={() => setMode('guest-access')}
             onSwitchToForgotPassword={() => setMode('forgot-password')}
+            onSwitchToPatientLogin={() => setMode('patient-login')}
           />
         )}
         {mode === 'register' && (
@@ -27,6 +30,18 @@ export function AuthPage() {
         {mode === 'guest-access' && (
           <GuestAccessForm
             onSwitchToLogin={() => setMode('login')}
+          />
+        )}
+        {mode === 'patient-login' && (
+          <PatientLoginForm
+            onSwitchToGuestAccess={() => setMode('guest-access')}
+            onSwitchToPatientSignup={() => setMode('patient-signup')}
+            onSwitchToClinicLogin={() => setMode('login')}
+          />
+        )}
+        {mode === 'patient-signup' && (
+          <GuestSignupForm
+            onSwitchToLogin={() => setMode('patient-login')}
           />
         )}
         {mode === 'forgot-password' && (

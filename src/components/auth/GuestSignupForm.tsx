@@ -13,9 +13,7 @@ interface GuestSignupFormProps {
 }
 
 interface GuestRegistrationData {
-  firstName: string;
-  lastName: string;
-  email: string;
+  fullName: string;
   phone: string;
   dateOfBirth: string;
   password: string;
@@ -32,9 +30,7 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
   const [success, setSuccess] = useState(false);
 
   const [formData, setFormData] = useState<GuestRegistrationData>({
-    firstName: guestData?.name?.split(' ')[0] || '',
-    lastName: guestData?.name?.split(' ').slice(1).join(' ') || '',
-    email: guestData?.email || '',
+    fullName: guestData?.name || '',
     phone: guestData?.phone || '',
     dateOfBirth: '',
     password: '',
@@ -50,7 +46,7 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
   };
 
   const validateForm = () => {
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.dateOfBirth) {
+    if (!formData.fullName || !formData.phone || !formData.dateOfBirth) {
       setError('Please fill in all required fields');
       return false;
     }
@@ -67,13 +63,6 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
     const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
     if (!phoneRegex.test(formData.phone.replace(/\s/g, ''))) {
       setError('Please enter a valid phone number');
-      return false;
-    }
-
-    // Validate email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      setError('Please enter a valid email address');
       return false;
     }
 
@@ -98,13 +87,17 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
 
     try {
       // Create user account with patient metadata
+      const nameParts = formData.fullName.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
       const { data: authData, error: authError } = await signUp(
-        formData.email,
+        `${formData.phone}@medizap.local`, // Use phone as email for authentication
         formData.password,
         {
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          full_name: `${formData.firstName} ${formData.lastName}`,
+          first_name: firstName,
+          last_name: lastName,
+          full_name: formData.fullName,
           phone: formData.phone,
           date_of_birth: formData.dateOfBirth,
           user_type: 'patient',
@@ -121,8 +114,8 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
         if (onGuestRegistered && formData.isGuestConversion) {
           onGuestRegistered({
             id: authData.user.id,
-            email: formData.email,
-            name: `${formData.firstName} ${formData.lastName}`,
+            email: `${formData.phone}@medizap.local`,
+            name: formData.fullName,
             phone: formData.phone,
             dateOfBirth: formData.dateOfBirth
           });
@@ -203,67 +196,23 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
         )}
 
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="firstName" className="block text-sm font-medium text-slate-700 mb-2">
-                First Name *
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-slate-400" />
-                </div>
-                <input
-                  id="firstName"
-                  name="firstName"
-                  type="text"
-                  required
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors bg-white"
-                  placeholder="Enter first name"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="lastName" className="block text-sm font-medium text-slate-700 mb-2">
-                Last Name *
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-slate-400" />
-                </div>
-                <input
-                  id="lastName"
-                  name="lastName"
-                  type="text"
-                  required
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors bg-white"
-                  placeholder="Enter last name"
-                />
-              </div>
-            </div>
-          </div>
-
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
-              Email Address *
+            <label htmlFor="fullName" className="block text-sm font-medium text-slate-700 mb-2">
+              Full Name *
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Mail className="h-5 w-5 text-slate-400" />
+                <User className="h-5 w-5 text-slate-400" />
               </div>
               <input
-                id="email"
-                name="email"
-                type="email"
+                id="fullName"
+                name="fullName"
+                type="text"
                 required
-                value={formData.email}
+                value={formData.fullName}
                 onChange={handleChange}
                 className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors bg-white"
-                placeholder="Enter your email"
+                placeholder="Enter your full name"
               />
             </div>
           </div>

@@ -10,6 +10,8 @@ import { DoctorsPage } from './pages/DoctorsPage';
 import { CallCenterPage } from './pages/CallCenterPage';
 import { WalkInsPage } from './pages/WalkInsPage';
 import { PatientBookingPage } from './pages/PatientBookingPage';
+import { PatientDashboardPage } from './pages/PatientDashboardPage';
+import { AIPatientRegistrationPage } from './pages/AIPatientRegistrationPage';
 import { PublicWalkInForm } from './components/PublicWalkInForm';
 import { useClinicContext } from './hooks/useClinicContext';
 import { supabase } from './lib/supabase';
@@ -179,6 +181,8 @@ function AppContent() {
         {/* Public routes - accessible without authentication */}
         <Route path="/walkin/:clinicSlug" element={<PublicWalkInForm />} />
         <Route path="/book/:clinicSlug" element={<PatientBookingPage />} />
+        <Route path="/register/patient" element={<AIPatientRegistrationPage />} />
+        <Route path="/register/patient/:clinicSlug" element={<AIPatientRegistrationPage />} />
         
         {/* Authentication required routes */}
         {!user ? (
@@ -188,39 +192,8 @@ function AppContent() {
             {/* Patient users - redirect to booking interface */}
             {userType === 'patient' ? (
               <>
-                {defaultClinic ? (
-                  <Route path="*" element={<Navigate to={`/book/${defaultClinic.slug}`} replace />} />
-                ) : (
-                  <Route path="*" element={
-                    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-                      <div className="max-w-md mx-auto text-center">
-                        <div className="bg-white rounded-xl shadow-lg p-8 border border-emerald-200">
-                          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                          </div>
-                          <h2 className="text-2xl font-bold text-slate-800 mb-2">Welcome to MediZap AI!</h2>
-                          <p className="text-slate-600 mb-6">
-                            Your patient account has been created successfully. Loading available clinics for appointment booking...
-                          </p>
-                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600 mx-auto mb-4"></div>
-                          <div className="space-y-3">
-                            <p className="text-sm text-slate-500">
-                              You'll be redirected to the booking interface shortly.
-                            </p>
-                            <button
-                              onClick={handleSignOut}
-                              className="w-full px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
-                            >
-                              Sign Out
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  } />
-                )}
+                <Route path="/" element={<PatientDashboardPage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
               </>
             ) : (
               <>

@@ -37,7 +37,13 @@ export function useDepartments() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchDepartments = async () => {
+    console.log('[DEBUG] useDepartments - fetchDepartments called:', {
+      clinicId,
+      timestamp: new Date().toISOString()
+    });
+
     if (!clinicId) {
+      console.log('[DEBUG] useDepartments - No clinicId, setting empty array');
       setDepartments([]);
       setLoading(false);
       return;
@@ -45,6 +51,11 @@ export function useDepartments() {
 
     try {
       setLoading(true);
+      console.log('[DEBUG] useDepartments - Starting query with params:', {
+        clinicId,
+        timestamp: new Date().toISOString()
+      });
+
       const { data, error } = await supabase
         .from('departments')
         .select('*')
@@ -52,9 +63,21 @@ export function useDepartments() {
         .eq('is_active', true)
         .order('name');
 
+      console.log('[DEBUG] useDepartments - Query response:', {
+        data,
+        error,
+        dataLength: data?.length || 0,
+        timestamp: new Date().toISOString()
+      });
       if (error) throw error;
       setDepartments(data || []);
     } catch (err) {
+      console.error('[ERROR] useDepartments - Query failed:', {
+        error: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined,
+        clinicId,
+        timestamp: new Date().toISOString()
+      });
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
@@ -99,7 +122,14 @@ export function useDoctors(departmentId?: string) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log('[DEBUG] useDoctors - Effect triggered:', {
+      clinicId,
+      departmentId,
+      timestamp: new Date().toISOString()
+    });
+
     if (!clinicId) {
+      console.log('[DEBUG] useDoctors - No clinicId, setting empty array');
       setDoctors([]);
       setLoading(false);
       return;
@@ -107,6 +137,12 @@ export function useDoctors(departmentId?: string) {
 
     async function fetchDoctors() {
       try {
+        console.log('[DEBUG] useDoctors - Starting query with params:', {
+          clinicId,
+          departmentId,
+          timestamp: new Date().toISOString()
+        });
+
         let query = supabase
           .from('doctors')
           .select('*')
@@ -118,9 +154,22 @@ export function useDoctors(departmentId?: string) {
 
         const { data, error } = await query.order('name');
 
+        console.log('[DEBUG] useDoctors - Query response:', {
+          data,
+          error,
+          dataLength: data?.length || 0,
+          timestamp: new Date().toISOString()
+        });
         if (error) throw error;
         setDoctors(data || []);
       } catch (err) {
+        console.error('[ERROR] useDoctors - Query failed:', {
+          error: err instanceof Error ? err.message : 'Unknown error',
+          stack: err instanceof Error ? err.stack : undefined,
+          clinicId,
+          departmentId,
+          timestamp: new Date().toISOString()
+        });
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
         setLoading(false);

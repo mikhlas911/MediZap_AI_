@@ -10,7 +10,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Types for our database
-export interface User {
+interface User {
   id: string;
   email: string;
   first_name: string;
@@ -35,7 +35,7 @@ export interface Clinic {
   updated_at: string;
 }
 
-export interface ClinicUser {
+interface ClinicUser {
   id: string;
   clinic_id: string;
   user_id: string;
@@ -86,7 +86,7 @@ export interface Appointment {
   updated_at: string;
 }
 
-export interface CallLog {
+interface CallLog {
   id: string;
   clinic_id: string;
   caller_phone: string;

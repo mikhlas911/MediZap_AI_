@@ -1,0 +1,32 @@
+Project Goal: To build a comprehensive healthcare management system with a focus on automated patient interactions via an AI voice agent.
+
+Key Components Implemented/Discussed:
+
+Backend RESTful API (Node.js/Express):
+
+We have set up a robust RESTful API to manage core healthcare operations.
+Endpoints: Implemented full CRUD (Create, Read, Update, Delete) operations for:
+Doctors: Listing, getting details, adding, updating, and removing doctors, including their specialties and availability.
+Appointments: Listing, scheduling, modifying, and canceling appointments, with specific endpoints for doctor schedules and appointments by date.
+Clinics: Listing, getting details, adding, and updating clinic information, including fetching doctors within a specific clinic.
+Walk-ins: Listing the queue, registering new patients, updating their status, and removing them from the queue.
+Departments: Listing, adding, and updating departments, and getting doctors within a department.
+Technical Requirements: The API includes essential features like proper error handling, authentication and authorization (using JWT and Supabase Auth), request/response validation (using Joi), pagination, filtering, sorting, comprehensive logging, and Swagger/OpenAPI documentation.
+Database Integration: This API connects to your Supabase PostgreSQL database.
+AI Voice Agent (Supabase Edge Functions):
+
+We have integrated an AI-powered voice agent designed for automated patient interactions.
+Functionality: This agent can:
+Book appointments.
+Register walk-in patients.
+Answer frequently asked questions about clinic services (e.g., hours, location).
+Technology: It leverages ElevenLabs for speech synthesis (text-to-speech) and OpenAI Whisper for transcription (speech-to-text).
+Direct Database Access: The AI voice agent, running as a Supabase Edge Function, directly interacts with the Supabase database to fetch information (like available doctors and departments) and record new appointments or walk-ins.
+Debugging Focus: Our recent efforts have been concentrated on ensuring this AI voice agent's seamless and correct access to the database, including adding detailed logging within the Edge Functions to trace data flow and identify any connectivity or logic issues.
+Database Schema (Supabase PostgreSQL):
+
+The project utilizes a PostgreSQL database hosted on Supabase, with Row Level Security (RLS) enabled for secure data access.
+Key Tables: The schema includes users, clinics, clinic_users (for user-clinic associations and roles), departments, doctors, appointments, walk_ins, call_logs, and conversation_logs.
+Automated Processes: Functions and triggers are in place for tasks like generating unique IDs, setting clinic slugs, and syncing doctor specializations with department names.
+Current Status:
+The core backend API is established and functional. We are actively working on resolving the database access issues specifically within the conversational AI's Supabase Edge Functions to ensure it can fully leverage the database for its operations.

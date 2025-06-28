@@ -69,6 +69,12 @@ export function PatientAppointmentBooking({
     setRegisteredPatientData(patient);
   };
 
+  const handleWalkinRegistered = (walkin: any) => {
+    // Handle walk-in registration - could show success message or redirect
+    console.log('Walk-in registered:', walkin);
+    // You can add additional logic here as needed
+  };
+
   const handleGuestRegistered = (userData: any) => {
     setShowGuestSignup(false);
     setRegisteredPatientData(userData);
