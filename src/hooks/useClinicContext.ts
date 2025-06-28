@@ -41,7 +41,7 @@ export function useClinicContext(): ClinicContext {
             clinic_id,
             role,
             is_active,
-            clinic:clinics(id, name)
+            clinic:clinics(id, name, clinicname)
           `)
           .eq('user_id', user.id)
           .eq('is_active', true)
@@ -65,7 +65,7 @@ export function useClinicContext(): ClinicContext {
 
         setContext({
           clinicId: clinicUser.clinic_id,
-          clinicName: clinicUser.clinic?.name || null,
+          clinicName: clinicUser.clinic?.name || clinicUser.clinic?.clinicname || null,
           userRole: clinicUser.role,
           loading: false,
           error: null

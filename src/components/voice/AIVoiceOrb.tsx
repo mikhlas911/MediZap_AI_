@@ -35,7 +35,7 @@ export function AIVoiceOrb({
     if (isOpen && scriptLoadedRef.current) {
       initializeWidget();
     }
-  }, [isOpen, scriptLoadedRef.current]);
+  }, [isOpen, scriptLoadedRef.current, clinicId, clinicName]);
 
   // Cleanup when modal closes
   useEffect(() => {
@@ -75,6 +75,12 @@ export function AIVoiceOrb({
     if (!widgetContainerRef.current) return;
 
     try {
+      console.log('[DEBUG] AIVoiceOrb - Initializing widget with:', {
+        clinicId,
+        clinicName,
+        timestamp: new Date().toISOString()
+      });
+
       // Clear any existing widget
       widgetContainerRef.current.innerHTML = '';
 
@@ -82,13 +88,58 @@ export function AIVoiceOrb({
       const widget = document.createElement('elevenlabs-convai');
       widget.setAttribute('agent-id', 'agent_01jy12vvryfnetmjmbe0vby1ec');
       
-      // Pass clinic context as dynamic variables
+      // Pass clinic context as dynamic variables with ALL required fields
       const dynamicVariables = {
-        clinicId: clinicId,
-        ClinicName: clinicName || 'Unknown Clinic',
+        // Core clinic context
+        clinicId: clinicId || 'default-clinic',
+        clinicName: clinicName || 'Default Clinic',
         context: 'patient_booking',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        
+        // Required tool parameters for get-doctors function
+        departmentId: null,
+        offset: 0,
+        limit: 50,
+        includeAvailability: true,
+        isActive: true,
+        
+        // Additional context for the AI agent
+        sessionId: `session_${Date.now()}`,
+        userType: 'guest',
+        conversationStep: 'greeting',
+        
+        // API endpoints (if needed by the agent)
+        apiBaseUrl: window.location.origin,
+        
+        // Feature flags
+        enableAppointmentBooking: true,
+        enableWalkInRegistration: true,
+        enableDoctorSelection: true,
+        enableDepartmentSelection: true,
+        
+        // Default values for form fields
+        patientName: null,
+        patientPhone: null,
+        patientEmail: null,
+        appointmentDate: null,
+        appointmentTime: null,
+        selectedDoctorId: null,
+        selectedDepartmentId: null,
+        
+        // Pagination and filtering defaults
+        page: 1,
+        pageSize: 50,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        filterActive: true,
+        
+        // Language and locale
+        language: 'en',
+        locale: 'en-US',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       };
+      
+      console.log('[DEBUG] AIVoiceOrb - Setting dynamic variables:', dynamicVariables);
       
       widget.setAttribute('dynamic-variables', JSON.stringify(dynamicVariables));
       
@@ -100,16 +151,16 @@ export function AIVoiceOrb({
 
       // Add event listeners for widget events if available
       widget.addEventListener('conversation-started', () => {
-        console.log('ElevenLabs conversation started for clinic:', clinicName);
+        console.log('[DEBUG] ElevenLabs conversation started for clinic:', clinicName);
       });
 
       widget.addEventListener('conversation-ended', () => {
-        console.log('ElevenLabs conversation ended for clinic:', clinicName);
+        console.log('[DEBUG] ElevenLabs conversation ended for clinic:', clinicName);
       });
 
       // Listen for appointment booking events
       widget.addEventListener('appointment-booked', (event: any) => {
-        console.log('Appointment booked via AI:', event.detail);
+        console.log('[DEBUG] Appointment booked via AI:', event.detail);
         if (onAppointmentBooked) {
           onAppointmentBooked(event.detail);
         }
@@ -117,17 +168,38 @@ export function AIVoiceOrb({
 
       // Listen for walk-in registration events
       widget.addEventListener('walkin-registered', (event: any) => {
-        console.log('Walk-in registered via AI:', event.detail);
+        console.log('[DEBUG] Walk-in registered via AI:', event.detail);
         if (onWalkinRegistered) {
           onWalkinRegistered(event.detail);
+        }
+      });
+
+      // Listen for errors
+      widget.addEventListener('error', (event: any) => {
+        console.error('[ERROR] ElevenLabs widget error:', event.detail);
+        setError(`AI Agent Error: ${event.detail?.message || 'Unknown error'}`);
+      });
+
+      // Listen for connection status
+      widget.addEventListener('connected', () => {
+        console.log('[DEBUG] ElevenLabs widget connected successfully');
+        setError(null);
+      });
+
+      widget.addEventListener('disconnected', (event: any) => {
+        console.warn('[WARN] ElevenLabs widget disconnected:', event.detail);
+        if (event.detail?.reason?.includes('Missing required dynamic variables')) {
+          setError('Configuration error: Missing required variables. Please refresh and try again.');
         }
       });
 
       // Append widget to container
       widgetContainerRef.current.appendChild(widget);
       setError(null);
+      
+      console.log('[DEBUG] ElevenLabs widget initialized successfully with all dynamic variables');
     } catch (err) {
-      console.error('Error initializing ElevenLabs widget:', err);
+      console.error('[ERROR] Error initializing ElevenLabs widget:', err);
       setError('Failed to initialize voice agent. Please try again.');
     }
   };
@@ -156,6 +228,9 @@ export function AIVoiceOrb({
                 <h2 className="text-lg font-bold text-slate-800">MediZap AI Voice Assistant</h2>
                 {clinicName && (
                   <p className="text-sm text-slate-600">{clinicName}</p>
+                )}
+                {clinicId && (
+                  <p className="text-xs text-slate-500">Clinic ID: {clinicId}</p>
                 )}
               </div>
             </div>
@@ -188,16 +263,24 @@ export function AIVoiceOrb({
                 </div>
                 <h3 className="text-lg font-medium text-slate-800 mb-2">Voice Assistant Error</h3>
                 <p className="text-slate-600 mb-4">{error}</p>
-                <button
-                  onClick={() => {
-                    setError(null);
-                    setIsLoading(true);
-                    loadElevenLabsScript();
-                  }}
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
-                >
-                  Try Again
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      setError(null);
+                      setIsLoading(true);
+                      loadElevenLabsScript();
+                    }}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors mr-2"
+                  >
+                    Try Again
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -224,6 +307,19 @@ export function AIVoiceOrb({
                   </div>
                 </div>
               </div>
+
+              {/* Debug Info (only in development) */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                  <h4 className="font-medium text-blue-800 mb-2">Debug Information</h4>
+                  <div className="text-sm text-blue-700 space-y-1">
+                    <p><strong>Clinic ID:</strong> {clinicId || 'Not provided'}</p>
+                    <p><strong>Clinic Name:</strong> {clinicName || 'Not provided'}</p>
+                    <p><strong>Script Loaded:</strong> {scriptLoadedRef.current ? 'Yes' : 'No'}</p>
+                    <p><strong>Widget Container:</strong> {widgetContainerRef.current ? 'Ready' : 'Not ready'}</p>
+                  </div>
+                </div>
+              )}
 
               {/* ElevenLabs Widget Container */}
               <div 

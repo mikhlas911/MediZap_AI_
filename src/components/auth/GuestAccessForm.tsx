@@ -17,6 +17,7 @@ export function GuestAccessForm({ onSwitchToLogin }: GuestAccessFormProps) {
 
   const handleVoiceBooking = () => {
     if (selectedClinic) {
+      console.log('[DEBUG] Starting voice booking with clinic:', selectedClinic);
       setShowVoiceOrb(true);
     }
   };
@@ -249,7 +250,7 @@ export function GuestAccessForm({ onSwitchToLogin }: GuestAccessFormProps) {
       <AIVoiceOrb
         isOpen={showVoiceOrb}
         onClose={() => setShowVoiceOrb(false)}
-        clinicId={selectedClinic?.id}
+        clinicId={selectedClinic?.id || 'default-clinic'}
         clinicName={selectedClinic?.name}
         onAppointmentBooked={handleAppointmentBooked}
         onWalkinRegistered={handleWalkinRegistered}

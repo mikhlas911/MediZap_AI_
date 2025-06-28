@@ -344,7 +344,7 @@ export function PatientAppointmentBooking({
           setShowAIVoiceOrb(false);
           setSelectedMethod(null);
         }}
-        clinicId={clinicId}
+        clinicId={clinicId || 'default-clinic'}
         clinicName={clinicName}
         onAppointmentBooked={handleAppointmentBooked}
         onWalkinRegistered={handleWalkinRegistered}

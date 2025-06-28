@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import ProgrammaticPatientRegistration, { 
   PatientRegistrationAPI, 
   NavigationOptions 
@@ -25,7 +25,31 @@ export function AIPatientRegistrationWrapper({
     clinicId && clinicName ? { id: clinicId, name: clinicName } : null
   );
 
+  // Add debugging to check if global objects are available
+  useEffect(() => {
+    console.log('AIPatientRegistrationWrapper: Component mounted');
+    
+    // Check global objects every second for debugging
+    const checkGlobals = () => {
+      console.log('Global objects check:', {
+        MediZapPatientRegistration: typeof window.MediZapPatientRegistration,
+        MediZapNavigation: typeof window.MediZapNavigation,
+        timestamp: new Date().toISOString()
+      });
+    };
+    
+    // Initial check
+    checkGlobals();
+    
+    // Check every 2 seconds for the first 10 seconds
+    const interval = setInterval(checkGlobals, 2000);
+    setTimeout(() => clearInterval(interval), 10000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
   const handleRegistrationSuccess = (userData: any, navigationOptions?: NavigationOptions) => {
+    console.log('Registration success:', userData);
     setUserData(userData);
     
     if (navigationOptions) {
@@ -54,6 +78,7 @@ export function AIPatientRegistrationWrapper({
   };
 
   const handleNavigationRequest = (options: NavigationOptions) => {
+    console.log('Navigation request:', options);
     switch (options.type) {
       case 'appointments':
         setCurrentStep('appointments');
@@ -147,15 +172,52 @@ export function AIPatientRegistrationWrapper({
     
     default:
       return (
-        <ProgrammaticPatientRegistration
-          ref={registrationRef}
-          onRegistrationSuccess={handleRegistrationSuccess}
-          onRegistrationError={handleRegistrationError}
-          onNavigationRequest={handleNavigationRequest}
-          autoGeneratePassword={true}
-          defaultNavigationType="appointments"
-          showUI={true}
-        />
+        <div>
+          <ProgrammaticPatientRegistration
+            ref={registrationRef}
+            onRegistrationSuccess={handleRegistrationSuccess}
+            onRegistrationError={handleRegistrationError}
+            onNavigationRequest={handleNavigationRequest}
+            autoGeneratePassword={true}
+            defaultNavigationType="appointments"
+            showUI={true}
+          />
+          
+          {/* Debug Panel - Remove this in production */}
+          <div className="mt-8 bg-slate-50 rounded-lg p-6 border border-slate-200">
+            <h3 className="text-lg font-medium text-slate-800 mb-4">Debug Information</h3>
+            <div className="space-y-2 text-sm text-slate-600">
+              <p><strong>Current Step:</strong> {currentStep}</p>
+              <p><strong>User Data:</strong> {userData ? 'Available' : 'Not set'}</p>
+              <p><strong>Selected Clinic:</strong> {selectedClinic ? selectedClinic.name : 'None'}</p>
+              <div className="mt-4">
+                <button
+                  onClick={() => {
+                    console.log('Manual global check:', {
+                      MediZapPatientRegistration: window.MediZapPatientRegistration,
+                      MediZapNavigation: window.MediZapNavigation
+                    });
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mr-2"
+                >
+                  Check Global Objects
+                </button>
+                <button
+                  onClick={() => {
+                    if (window.MediZapPatientRegistration) {
+                      console.log('Form data:', window.MediZapPatientRegistration.getFormData());
+                    } else {
+                      console.log('MediZapPatientRegistration not available');
+                    }
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Get Form Data
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       );
   }
 

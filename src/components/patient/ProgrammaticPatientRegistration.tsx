@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef, useMemo } from 'react';
 import { User, Phone, Calendar, AlertCircle, CheckCircle, Save } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 
@@ -69,6 +69,12 @@ export const ProgrammaticPatientRegistration = forwardRef<
     password: '',
     confirmPassword: ''
   });
+  const formDataRef = useRef(formData); // Ref to hold the latest formData
+
+  // Update the ref whenever formData changes
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +144,7 @@ export const ProgrammaticPatientRegistration = forwardRef<
   };
 
   // API functions for external control
-  const api: PatientRegistrationAPI = {
+  const api: PatientRegistrationAPI = useMemo(() => ({
     setFullName: (name: string) => {
       setFormData(prev => ({ ...prev, fullName: name }));
       setError(null);
@@ -164,9 +170,9 @@ export const ProgrammaticPatientRegistration = forwardRef<
       setError(null);
     },
 
-    getFormData: () => ({ ...formData }),
+    getFormData: () => ({ ...formDataRef.current }), // Use ref for latest state
 
-    validateForm: () => validateForm(),
+    validateForm: () => validateForm(), // This calls the validateForm function which uses the ref
 
     isFormValid: () => validateForm().isValid,
 
@@ -176,7 +182,7 @@ export const ProgrammaticPatientRegistration = forwardRef<
         phone: '',
         dateOfBirth: '',
         password: autoGeneratePassword ? generatePassword() : '',
-        confirmPassword: autoGeneratePassword ? formData.password : ''
+        confirmPassword: autoGeneratePassword ? formDataRef.current.password : '' // Use ref for current password
       });
       setError(null);
       setSuccess(false);
@@ -184,7 +190,8 @@ export const ProgrammaticPatientRegistration = forwardRef<
     },
 
     submitForm: async (): Promise<{ success: boolean; data?: any; error?: string }> => {
-      const validation = validateForm();
+      const currentFormData = formDataRef.current; // Use ref for latest state
+      const validation = validateForm(); // This calls the validateForm function which uses the ref
       if (!validation.isValid) {
         const errorMessage = `Validation failed: ${validation.errors.join(', ')}`;
         setError(errorMessage);
@@ -196,21 +203,21 @@ export const ProgrammaticPatientRegistration = forwardRef<
       setError(null);
 
       try {
-        // Split full name into first and last name
-        const nameParts = formData.fullName.trim().split(' ');
+        // Split full name into first and last name (uses currentFormData)
+        const nameParts = currentFormData.fullName.trim().split(' ');
         const firstName = nameParts[0] || '';
         const lastName = nameParts.slice(1).join(' ') || '';
 
         // Create user account with patient metadata
         const { data: authData, error: authError } = await signUp(
-          `${formData.phone}@medizap.local`, // Use phone as email for authentication
-          formData.password,
+          `${currentFormData.phone}@medizap.local`, // Use phone as email for authentication
+          currentFormData.password,
           {
             first_name: firstName,
             last_name: lastName,
-            full_name: formData.fullName,
-            phone: formData.phone,
-            date_of_birth: formData.dateOfBirth,
+            full_name: currentFormData.fullName,
+            phone: currentFormData.phone,
+            date_of_birth: currentFormData.dateOfBirth,
             user_type: 'patient'
           }
         );
@@ -220,10 +227,10 @@ export const ProgrammaticPatientRegistration = forwardRef<
         if (authData.user) {
           const userData = {
             id: authData.user.id,
-            email: `${formData.phone}@medizap.local`,
-            name: formData.fullName,
-            phone: formData.phone,
-            dateOfBirth: formData.dateOfBirth
+            email: `${currentFormData.phone}@medizap.local`,
+            name: currentFormData.fullName,
+            phone: currentFormData.phone,
+            dateOfBirth: currentFormData.dateOfBirth
           };
 
           setSuccess(true);
@@ -241,8 +248,8 @@ export const ProgrammaticPatientRegistration = forwardRef<
       } finally {
         setLoading(false);
       }
-    }
-  };
+    } // End submitForm
+  }), [autoGeneratePassword, signUp, onRegistrationSuccess, onRegistrationError, defaultNavigationType]); // Dependencies for useMemo
 
   // Expose API to ref and global window
   useImperativeHandle(ref, () => api);
@@ -252,7 +259,7 @@ export const ProgrammaticPatientRegistration = forwardRef<
     return () => {
       delete window.MediZapPatientRegistration;
     };
-  }, []);
+  }, [api]); // `api` is stable, so this will only run once
 
   // Navigation helper functions for AI agents
   const navigateToAppointments = (clinicId?: string, clinicName?: string) => {
@@ -279,7 +286,7 @@ export const ProgrammaticPatientRegistration = forwardRef<
     return () => {
       delete window.MediZapNavigation;
     };
-  }, [onNavigationRequest]);
+  }, [onNavigationRequest]); // This is stable from props
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
