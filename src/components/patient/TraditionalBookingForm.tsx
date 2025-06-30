@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, Clock, User, Phone, Mail, Building2, Users, Save, ChevronDown, AlertCircle } from 'lucide-react';
-import { useDepartments, useDoctors } from '../../hooks/useSupabaseData';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../auth/AuthProvider';
 
 interface TraditionalBookingFormProps {
   isOpen: boolean;
@@ -40,8 +40,11 @@ export function TraditionalBookingForm({
   onAppointmentBooked,
   onPatientRegistered
 }: TraditionalBookingFormProps) {
-  const { departments } = useDepartments();
-  const { doctors } = useDoctors();
+  const { user } = useAuth();
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [departmentsLoading, setDepartmentsLoading] = useState(true);
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [doctorsLoading, setDoctorsLoading] = useState(false);
   
   const [formData, setFormData] = useState<BookingFormData>({
     patientName: patientData?.name || '',
@@ -56,20 +59,85 @@ export function TraditionalBookingForm({
 
   const [availableDoctors, setAvailableDoctors] = useState<any[]>([]);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(1);
 
-  // Filter doctors by selected department
+  // Fetch departments for the specific clinic
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      if (!clinicId) {
+        setDepartments([]);
+        setDepartmentsLoading(false);
+        return;
+      }
+
+      try {
+        setDepartmentsLoading(true);
+        const { data, error } = await supabase
+          .from('departments')
+          .select('*')
+          .eq('clinic_id', clinicId)
+          .eq('is_active', true)
+          .order('name');
+
+        if (error) throw error;
+        setDepartments(data || []);
+      } catch (err) {
+        console.error('Error fetching departments:', err);
+        setDepartments([]);
+      } finally {
+        setDepartmentsLoading(false);
+      }
+    };
+
+    fetchDepartments();
+  }, [clinicId]);
+
+  // Fetch doctors when department is selected
   useEffect(() => {
     if (formData.departmentId) {
-      const deptDoctors = doctors.filter(doctor => doctor.department_id === formData.departmentId);
-      setAvailableDoctors(deptDoctors);
+      fetchDoctors();
       setFormData(prev => ({ ...prev, doctorId: '', appointmentDate: '', appointmentTime: '' }));
     } else {
       setAvailableDoctors([]);
     }
-  }, [formData.departmentId, doctors]);
+  }, [formData.departmentId]);
+
+  const fetchDoctors = async () => {
+    if (!clinicId || !formData.departmentId) {
+      setAvailableDoctors([]);
+      return;
+    }
+
+    try {
+      setDoctorsLoading(true);
+      const { data, error } = await supabase
+        .from('doctors')
+        .select('*')
+        .eq('clinic_id', clinicId)
+        .eq('department_id', formData.departmentId)
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setAvailableDoctors(data || []);
+    } catch (err) {
+      console.error('Error fetching doctors:', err);
+      setAvailableDoctors([]);
+    } finally {
+      setDoctorsLoading(false);
+    }
+  };
+  // Get available time slots when doctor and date are selected
+  useEffect(() => {
+    if (formData.doctorId) {
+      fetchAvailableDates();
+    } else {
+      setAvailableDates([]);
+    }
+  }, [formData.doctorId]);
 
   // Get available time slots when doctor and date are selected
   useEffect(() => {
@@ -80,10 +148,41 @@ export function TraditionalBookingForm({
     }
   }, [formData.doctorId, formData.appointmentDate]);
 
+  const fetchAvailableDates = async () => {
+    try {
+      const selectedDoctor = availableDoctors.find(d => d.id === formData.doctorId);
+      if (!selectedDoctor || !selectedDoctor.available_days) {
+        setAvailableDates([]);
+        return;
+      }
+
+      // Generate available dates for the next 3 months based on doctor's available days
+      const availableDays = selectedDoctor.available_days;
+      const dates: string[] = [];
+      const today = new Date();
+      const endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + 3);
+
+      for (let date = new Date(today); date <= endDate; date.setDate(date.getDate() + 1)) {
+        const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
+        if (availableDays.includes(dayOfWeek)) {
+          dates.push(date.toISOString().split('T')[0]);
+        }
+      }
+
+      setAvailableDates(dates);
+    } catch (err) {
+      console.error('Error calculating available dates:', err);
+      setAvailableDates([]);
+    }
+  };
   const fetchAvailableSlots = async () => {
     try {
       const selectedDoctor = availableDoctors.find(d => d.id === formData.doctorId);
-      if (!selectedDoctor) return;
+      if (!selectedDoctor || !selectedDoctor.available_times) {
+        setAvailableSlots([]);
+        return;
+      }
 
       // Check if doctor is available on selected day
       const dayOfWeek = new Date(formData.appointmentDate).toLocaleDateString('en-US', { weekday: 'long' });
@@ -92,19 +191,78 @@ export function TraditionalBookingForm({
         return;
       }
 
+      // Enhanced helper function to normalize time format to HH:MM (24-hour format)
+      const normalizeTimeFormat = (timeString: string): string => {
+        if (!timeString) return '';
+        
+        // Remove any whitespace
+        const cleaned = timeString.trim();
+        
+        // Handle AM/PM format (e.g., "09:00 AM", "02:00 PM", "9:30 AM")
+        const ampmMatch = cleaned.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+        if (ampmMatch) {
+          let hour = parseInt(ampmMatch[1]);
+          const minute = ampmMatch[2];
+          const period = ampmMatch[3].toUpperCase();
+          
+          // Convert to 24-hour format
+          if (period === 'AM') {
+            if (hour === 12) hour = 0; // 12 AM = 00:xx
+          } else { // PM
+            if (hour !== 12) hour += 12; // 1 PM = 13:xx, but 12 PM = 12:xx
+          }
+          
+          return hour.toString().padStart(2, '0') + ':' + minute;
+        }
+        
+        // If already in HH:MM format, return as is
+        if (/^\d{2}:\d{2}$/.test(cleaned)) {
+          return cleaned;
+        }
+        
+        // If in H:MM format, add leading zero
+        if (/^\d{1}:\d{2}$/.test(cleaned)) {
+          return '0' + cleaned;
+        }
+        
+        // If in HH:M format, add trailing zero
+        if (/^\d{2}:\d{1}$/.test(cleaned)) {
+          return cleaned + '0';
+        }
+        
+        // If in H:M format, add leading and trailing zeros
+        if (/^\d{1}:\d{1}$/.test(cleaned)) {
+          return '0' + cleaned + '0';
+        }
+        
+        // If just a number (like "9" or "14"), assume it's hours
+        if (/^\d{1,2}$/.test(cleaned)) {
+          const hour = parseInt(cleaned);
+          return hour.toString().padStart(2, '0') + ':00';
+        }
+        
+        // Return original if no pattern matches
+        return cleaned;
+      };
+
       // Get existing appointments for this doctor on this date
       const { data: appointments, error } = await supabase
         .from('appointments')
         .select('appointment_time')
         .eq('doctor_id', formData.doctorId)
-        .eq('appointment_date', formData.appointmentDate)
+        .eq('appointment_date', formData.appointmentDate.trim())
         .in('status', ['pending', 'confirmed']);
 
       if (error) throw error;
 
-      // Filter out booked time slots
-      const bookedTimes = appointments?.map(apt => apt.appointment_time) || [];
-      const available = (selectedDoctor.available_times || []).filter(time => !bookedTimes.includes(time));
+      // Normalize booked times to consistent format
+      const bookedTimes = appointments?.map(apt => normalizeTimeFormat(apt.appointment_time)) || [];
+      
+      // Normalize available times to consistent format
+      const formattedAvailableTimes = selectedDoctor.available_times.map(time => normalizeTimeFormat(time));
+      
+      // Filter out booked time slots using normalized format
+      const available = formattedAvailableTimes.filter(time => !bookedTimes.includes(time));
       
       setAvailableSlots(available.sort());
     } catch (err) {
@@ -146,6 +304,10 @@ export function TraditionalBookingForm({
           setError('Please select an appointment date');
           return false;
         }
+        if (formData.doctorId && !isDateAvailable(formData.appointmentDate)) {
+          setError('Selected date is not available for this doctor');
+          return false;
+        }
         if (!formData.appointmentTime) {
           setError('Please select an appointment time');
           return false;
@@ -170,6 +332,12 @@ export function TraditionalBookingForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Additional validation for date availability
+    if (formData.doctorId && formData.appointmentDate && !isDateAvailable(formData.appointmentDate)) {
+      setError('Selected date is not available for this doctor. Please choose an available date.');
+      return;
+    }
+    
     if (!validateStep(3)) return;
 
     setLoading(true);
@@ -187,7 +355,8 @@ export function TraditionalBookingForm({
         appointment_date: formData.appointmentDate,
         appointment_time: formData.appointmentTime,
         status: 'pending',
-        notes: formData.notes || `Booked via traditional form on ${new Date().toISOString()}`
+        notes: formData.notes || `Booked via traditional form on ${new Date().toISOString()}`,
+        created_by: user?.id || null // Set the authenticated user as the creator
       };
 
       const { data: appointment, error: appointmentError } = await supabase
@@ -242,6 +411,18 @@ export function TraditionalBookingForm({
     const maxDate = new Date();
     maxDate.setMonth(maxDate.getMonth() + 3);
     return maxDate.toISOString().split('T')[0];
+  };
+
+  const isDateAvailable = (dateString: string): boolean => {
+    if (!formData.doctorId || availableDates.length === 0) {
+      return true; // If no doctor selected, don't restrict dates
+    }
+    return availableDates.includes(dateString);
+  };
+
+  const getDateInputStyle = () => {
+    const baseStyle = "w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500";
+    return formData.doctorId ? `${baseStyle} date-picker-with-availability` : baseStyle;
   };
 
   if (!isOpen) return null;
@@ -381,15 +562,23 @@ export function TraditionalBookingForm({
                     required
                     value={formData.departmentId}
                     onChange={handleChange}
-                    className="w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 appearance-none"
+                    disabled={departmentsLoading}
+                    className="w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 appearance-none disabled:bg-slate-100"
                   >
-                    <option value="">Select a department</option>
+                    <option value="">
+                      {departmentsLoading ? 'Loading departments...' : 'Select a department'}
+                    </option>
                     {departments.map(dept => (
                       <option key={dept.id} value={dept.id}>{dept.name}</option>
                     ))}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
                 </div>
+                {departments.length === 0 && !departmentsLoading && (
+                  <p className="text-sm text-orange-600 mt-2">
+                    No departments available for this clinic. Please contact the clinic administrator.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -403,18 +592,30 @@ export function TraditionalBookingForm({
                     required
                     value={formData.doctorId}
                     onChange={handleChange}
-                    disabled={!formData.departmentId}
+                    disabled={!formData.departmentId || doctorsLoading}
                     className="w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 appearance-none disabled:bg-slate-100"
                   >
-                    <option value="">Select a doctor</option>
+                    <option value="">
+                      {!formData.departmentId 
+                        ? 'Select a department first' 
+                        : doctorsLoading 
+                        ? 'Loading doctors...' 
+                        : 'Select a doctor'
+                      }
+                    </option>
                     {availableDoctors.map(doctor => (
                       <option key={doctor.id} value={doctor.id}>
-                        Dr. {doctor.name} - {doctor.specialization}
+                        {doctor.name} - {doctor.specialization}
                       </option>
                     ))}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
                 </div>
+                {formData.departmentId && availableDoctors.length === 0 && !doctorsLoading && (
+                  <p className="text-sm text-orange-600 mt-2">
+                    No doctors available in this department. Please select a different department.
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -460,11 +661,22 @@ export function TraditionalBookingForm({
                     <option value="">Select a time</option>
                     {availableSlots.map(slot => (
                       <option key={slot} value={slot}>
-                        {new Date(`2000-01-01T${slot}`).toLocaleTimeString('en-US', {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          hour12: true
-                        })}
+                        {(() => {
+                          // Format the time slot for display - now handles normalized 24-hour format
+                          try {
+                            // slot is already normalized to HH:MM format by normalizeTimeFormat
+                            const timeValue = slot;
+                            
+                            return new Date(`2000-01-01T${timeValue}`).toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true
+                            });
+                          } catch (err) {
+                            console.error('Error formatting slot time:', err, slot);
+                            return slot; // Fallback to original time format if parsing fails
+                          }
+                        })()}
                       </option>
                     ))}
                   </select>
@@ -487,9 +699,20 @@ export function TraditionalBookingForm({
                   onChange={handleChange}
                   rows={3}
                   className="w-full px-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-none"
-                  placeholder="Any additional notes or symptoms..."
                 />
               </div>
+              {formData.doctorId && (
+                <div className="mt-2">
+                  <p className="text-sm text-slate-600 mb-2">
+                    Available days: {availableDoctors.find(d => d.id === formData.doctorId)?.available_days?.join(', ') || 'None'}
+                  </p>
+                  {formData.appointmentDate && !isDateAvailable(formData.appointmentDate) && (
+                    <p className="text-sm text-red-600">
+                      Selected date is not available. Please choose a date when the doctor is available.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -499,6 +722,11 @@ export function TraditionalBookingForm({
               <h3 className="text-lg font-medium text-slate-800 mb-4">Confirm Appointment</h3>
               
               <div className="bg-slate-50 rounded-lg p-6 space-y-4">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="text-sm text-slate-600">Available appointment slot confirmed</span>
+                </div>
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <h4 className="font-medium text-slate-700 mb-2">Patient Information</h4>
@@ -524,12 +752,25 @@ export function TraditionalBookingForm({
                         day: 'numeric'
                       })}
                     </p>
+                    <p className="text-sm text-slate-500">
+                      Day: {new Date(formData.appointmentDate).toLocaleDateString('en-US', { weekday: 'long' })}
+                    </p>
                     <p className="text-sm text-slate-600">
-                      Time: {new Date(`2000-01-01T${formData.appointmentTime}`).toLocaleTimeString('en-US', {
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        hour12: true
-                      })}
+                      Time: {(() => {
+                        try {
+                          // formData.appointmentTime should already be in normalized HH:MM format
+                          const timeValue = formData.appointmentTime;
+                          
+                          return new Date(`2000-01-01T${timeValue}`).toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          });
+                        } catch (err) {
+                          console.error('Error formatting time:', err, formData.appointmentTime);
+                          return formData.appointmentTime; // Fallback to original time format if parsing fails
+                        }
+                      })()}
                     </p>
                   </div>
                 </div>
@@ -594,6 +835,18 @@ export function TraditionalBookingForm({
             </div>
           </div>
         </form>
+        
+        {/* Add custom CSS for date picker styling */}
+        <style jsx>{`
+          .date-picker-with-availability::-webkit-calendar-picker-indicator {
+            filter: invert(0.5);
+          }
+          
+          /* Custom styling for unavailable dates - this is limited in HTML5 date inputs */
+          .date-picker-with-availability {
+            position: relative;
+          }
+        `}</style>
       </div>
     </div>
   );

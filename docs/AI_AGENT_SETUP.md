@@ -8,32 +8,14 @@ The MediZap AI system uses custom secret authentication to allow your AI agent t
 
 ## Step 1: Set the Secret in Supabase
 
-First, you need to set the `ELEVENLABS_FUNCTION_SECRET` environment variable in your Supabase project.
+First, you need to ensure your Supabase project is properly configured for JWT authentication.
 
-### Using Supabase CLI:
+### JWT Authentication Setup:
 
-```bash
-# Install Supabase CLI if you haven't already
-npm install -g supabase
-
-# Login to Supabase
-supabase login
-
-# Link to your project (replace with your project reference)
-supabase link --project-ref your-project-ref
-
-# Set the secret (replace with a strong, unique secret)
-supabase secrets set ELEVENLABS_FUNCTION_SECRET=your-super-secret-key-here
-```
-
-### Using Supabase Dashboard:
-
-1. Go to your Supabase project dashboard
-2. Navigate to Settings → Edge Functions
-3. In the Environment Variables section, add:
-   - **Name**: `ELEVENLABS_FUNCTION_SECRET`
-   - **Value**: `your-super-secret-key-here` (use a strong, unique secret)
-4. Click "Add variable"
+1. JWT authentication is built into Supabase
+2. Your ElevenLabs agent will need to include the JWT token in the Authorization header
+3. The JWT token is passed to the agent via the `jwtToken` dynamic variable
+4. Make sure your users are authenticated before using the voice agent
 
 ## Step 2: Configure ElevenLabs Custom Tools
 
@@ -50,7 +32,7 @@ In your ElevenLabs Conversational AI agent, you need to configure custom tools t
 ```json
 {
   "Content-Type": "application/json",
-  "X-Elevenlabs-Secret": "your-super-secret-key-here"
+  "Authorization": "Bearer {{jwtToken}}"
 }
 ```
 
@@ -84,7 +66,7 @@ In your ElevenLabs Conversational AI agent, you need to configure custom tools t
 ```json
 {
   "Content-Type": "application/json",
-  "X-Elevenlabs-Secret": "your-super-secret-key-here"
+  "Authorization": "Bearer {{jwtToken}}"
 }
 ```
 
@@ -127,7 +109,7 @@ In your ElevenLabs Conversational AI agent, you need to configure custom tools t
 ```json
 {
   "Content-Type": "application/json",
-  "X-Elevenlabs-Secret": "your-super-secret-key-here"
+  "Authorization": "Bearer {{jwtToken}}"
 }
 ```
 
@@ -185,13 +167,13 @@ In your ElevenLabs Conversational AI agent, you need to configure custom tools t
 # Test get-departments
 curl -X POST https://your-project.supabase.co/functions/v1/get-departments \
   -H "Content-Type: application/json" \
-  -H "X-Elevenlabs-Secret: your-super-secret-key-here" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{"clinicId": "your-clinic-id"}'
 
 # Test get-doctors
 curl -X POST https://your-project.supabase.co/functions/v1/get-doctors \
   -H "Content-Type: application/json" \
-  -H "X-Elevenlabs-Secret: your-super-secret-key-here" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{"clinicId": "your-clinic-id", "includeAvailability": true}'
 ```
 

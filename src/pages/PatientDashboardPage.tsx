@@ -3,9 +3,11 @@ import { Building2, User, Calendar, Mic, MessageSquare, ArrowRight, MapPin, Phon
 import { ClinicSelector } from '../components/ClinicSelector';
 import { PatientAppointmentBooking } from '../components/patient/PatientAppointmentBooking';
 import { useAuth } from '../components/auth/AuthProvider';
+import { useAppointments } from '../hooks/useSupabaseData';
 
 export function PatientDashboardPage() {
   const { user, signOut } = useAuth();
+  const { appointments } = useAppointments();
   const [selectedClinic, setSelectedClinic] = useState<any>(null);
   const [showBooking, setShowBooking] = useState(false);
   const [bookingMethod, setBookingMethod] = useState<'voice' | 'form' | null>(null);
@@ -113,7 +115,7 @@ export function PatientDashboardPage() {
         </div>
 
         {/* Clinic Selection */}
-        <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden mb-8">
+        <div className="bg-white rounded-xl shadow-lg border border-slate-200 mb-8 relative">
           <div className="bg-gradient-to-r from-emerald-50 to-sky-50 p-6 border-b border-slate-200">
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
@@ -273,6 +275,41 @@ export function PatientDashboardPage() {
           </div>
         </div>
       </div>
+        {/* Patient's Appointments */}
+        {appointments.length > 0 && (
+          <div className="bg-white rounded-xl shadow-lg border border-slate-200 mb-8">
+            <div className="p-6 border-b border-slate-200">
+              <h3 className="text-lg font-medium text-slate-800">Your Appointments</h3>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                {appointments.slice(0, 3).map((appointment) => (
+                  <div key={appointment.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                    <div>
+                      <h4 className="font-medium text-slate-800">Dr. {appointment.doctor.name}</h4>
+                      <p className="text-sm text-slate-600">{appointment.department.name}</p>
+                      <p className="text-sm text-slate-500">
+                        {new Date(appointment.appointment_date).toLocaleDateString()} at {appointment.appointment_time}
+                      </p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      appointment.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                      appointment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-slate-100 text-slate-800'
+                    }`}>
+                      {appointment.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {appointments.length > 3 && (
+                <p className="text-sm text-slate-500 mt-4 text-center">
+                  And {appointments.length - 3} more appointments...
+                </p>
+              )}
+            </div>
+          </div>
+        )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { AIVoiceOrb } from '../voice/AIVoiceOrb';
 import { GuestSignupForm } from '../auth/GuestSignupForm';
 import { TraditionalBookingForm } from './TraditionalBookingForm';
 import { useDepartments, useDoctors } from '../../hooks/useSupabaseData';
+import { useAuth } from '../auth/AuthProvider';
 
 interface PatientAppointmentBookingProps {
   clinicId: string;
@@ -25,6 +26,7 @@ export function PatientAppointmentBooking({
   patientData,
   bookingMethod
 }: PatientAppointmentBookingProps) {
+  const { user } = useAuth();
   const [showAIVoiceOrb, setShowAIVoiceOrb] = useState(false);
   const [showGuestSignup, setShowGuestSignup] = useState(false);
   const [showTraditionalForm, setShowTraditionalForm] = useState(false);
@@ -360,7 +362,12 @@ export function PatientAppointmentBooking({
         clinicId={clinicId}
         clinicName={clinicName}
         userType={userType}
-        patientData={patientData}
+        patientData={patientData || (user ? {
+          id: user.id,
+          name: user.user_metadata?.full_name || '',
+          email: user.email || '',
+          phone: user.user_metadata?.phone || ''
+        } : undefined)}
         onAppointmentBooked={handleAppointmentBooked}
         onPatientRegistered={handlePatientRegistered}
       />

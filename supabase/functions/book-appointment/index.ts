@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-elevenlabs-secret',
+  'Access-Control-Allow-Headers': 'x-client-info, apikey, content-type, authorization',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
@@ -18,65 +18,101 @@ interface BookAppointmentRequest {
   notes?: string;
 }
 
+// Function to send confirmation email
+async function sendConfirmationEmail(appointmentData: any) {
+  try {
+    // Skip if no email is provided
+    if (!appointmentData.email) {
+      console.log('[INFO] No email provided, skipping confirmation email');
+      return { success: false, reason: 'no_email' };
+    }
+
+    console.log('[DEBUG] Preparing to send confirmation email to:', appointmentData.email);
+    
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+    const emailEndpoint = `${SUPABASE_URL}/functions/v1/send-confirmation-email`;
+    
+    const emailData = {
+      to: appointmentData.email,
+      patientName: appointmentData.patient_name,
+      appointmentDate: appointmentData.appointment_date,
+      appointmentTime: appointmentData.appointment_time,
+      doctorName: appointmentData.doctor?.name,
+      departmentName: appointmentData.department?.name,
+      clinicName: appointmentData.clinic?.name || 'MediZap AI Clinic',
+      appointmentId: appointmentData.id
+    };
+    
+    console.log('[DEBUG] Email data prepared:', {
+      to: emailData.to,
+      appointmentId: emailData.appointmentId,
+      timestamp: new Date().toISOString()
+    });
+
+    // Get the secret for authentication
+    const ELEVENLABS_FUNCTION_SECRET = Deno.env.get('ELEVENLABS_FUNCTION_SECRET');
+    
+    const response = await fetch(emailEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Elevenlabs-Secret': ELEVENLABS_FUNCTION_SECRET || ''
+      },
+      body: JSON.stringify(emailData)
+    });
+
+    const result = await response.json();
+    
+    if (!response.ok) {
+      console.error('[ERROR] Failed to send confirmation email:', result);
+      return { success: false, error: result.error || 'Unknown error' };
+    }
+    
+    console.log('[DEBUG] Confirmation email sent successfully:', {
+      emailId: result.data?.id,
+      timestamp: new Date().toISOString()
+    });
+    
+    return { success: true, data: result.data };
+  } catch (error) {
+    console.error('[ERROR] Error sending confirmation email:', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+    
+    return { success: false, error: error.message };
+  }
+}
+
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Only allow POST
-  if (req.method !== 'POST') {
+  // --- JWT Authentication ---
+  // Get the Authorization header
+  const authHeader = req.headers.get('authorization');
+  
+  // Check if Authorization header exists and starts with 'Bearer '
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('[ERROR] Missing or invalid Authorization header');
     return new Response(
-      JSON.stringify({ success: false, error: 'Method Not Allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({
+        success: false,
+        error: 'Unauthorized',
+        message: 'Missing or invalid Authorization header'
+      }),
+      {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
     );
   }
-
-  // --- Custom Secret Authentication ---
-  const ELEVENLABS_FUNCTION_SECRET = Deno.env.get('ELEVENLABS_FUNCTION_SECRET');
-  const providedSecret = req.headers.get('x-elevenlabs-secret');
   
-  console.log('[DEBUG] Authentication check:', {
-    hasSecret: !!ELEVENLABS_FUNCTION_SECRET,
-    hasProvidedSecret: !!providedSecret,
-    secretsMatch: ELEVENLABS_FUNCTION_SECRET && providedSecret && ELEVENLABS_FUNCTION_SECRET === providedSecret,
-    timestamp: new Date().toISOString()
-  });
-
-  // Check if secret is configured and provided
-  if (ELEVENLABS_FUNCTION_SECRET) {
-    if (!providedSecret) {
-      console.log('[ERROR] Missing X-Elevenlabs-Secret header');
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Unauthorized',
-          message: 'Missing X-Elevenlabs-Secret header'
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    if (providedSecret !== ELEVENLABS_FUNCTION_SECRET) {
-      console.log('[ERROR] Invalid X-Elevenlabs-Secret header');
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Unauthorized',
-          message: 'Invalid X-Elevenlabs-Secret header'
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-  } else {
-    console.log('[WARN] ELEVENLABS_FUNCTION_SECRET not configured - allowing all requests');
-  }
+  // Extract the JWT token
+  const jwt = authHeader.replace('Bearer ', '');
 
   // --- Environment Variables Check ---
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -92,15 +128,51 @@ Deno.serve(async (req: Request) => {
     console.log('[DEBUG] Book Appointment - Authenticated request received:', {
       method: req.method,
       url: req.url,
-      timestamp: new Date().toISOString(),
-      hasValidSecret: true
+      timestamp: new Date().toISOString()
     });
 
-    // Create Supabase client with service role key (bypasses RLS)
-    const supabase = createClient(
+    // Create Supabase client with the JWT token
+    const supabaseAdmin = createClient(
       SUPABASE_URL,
       SUPABASE_SERVICE_ROLE_KEY
     );
+    
+    // Create a client with the JWT token to get the user
+    const supabaseAuth = createClient(
+      SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${jwt}`
+          }
+        }
+      }
+    );
+    
+    // Get the authenticated user
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser(jwt);
+    
+    if (userError || !user) {
+      console.error('[ERROR] Invalid JWT token or user not found:', userError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Unauthorized',
+          message: 'Invalid JWT token or user not found'
+        }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+    
+    console.log('[DEBUG] Authenticated user:', {
+      userId: user.id,
+      email: user.email,
+      timestamp: new Date().toISOString()
+    });
 
     // Parse request body
     let requestData: BookAppointmentRequest;
@@ -154,7 +226,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Check if the time slot is available
-    const { data: existingAppointments, error: checkError } = await supabase
+    const { data: existingAppointments, error: checkError } = await supabaseAdmin
       .from('appointments')
       .select('id')
       .eq('doctor_id', requestData.doctorId)
@@ -203,19 +275,21 @@ Deno.serve(async (req: Request) => {
       department_id: requestData.departmentId,
       appointment_date: requestData.appointmentDate,
       appointment_time: requestData.appointmentTime,
-      status: 'pending',
-      notes: requestData.notes || 'Booked via AI voice agent'
+      status: 'pending', 
+      notes: requestData.notes || 'Booked via AI voice agent',
+      created_by: user.id // Set the authenticated user as the creator
     };
 
     console.log('[DEBUG] Creating appointment with data:', appointmentData);
 
-    const { data: appointment, error: insertError } = await supabase
+    const { data: appointment, error: insertError } = await supabaseAdmin
       .from('appointments')
       .insert([appointmentData])
-      .select(`
+      .select(`*,
         *,
-        doctor:doctors(name, specialization),
-        department:departments(name)
+        doctor:doctors(id, name, specialization),
+        department:departments(id, name),
+        clinic:clinics(id, name)
       `)
       .single();
 
@@ -242,6 +316,44 @@ Deno.serve(async (req: Request) => {
       timestamp: new Date().toISOString()
     });
 
+    // Send confirmation email asynchronously
+    if (appointment.email) {
+      console.log('[DEBUG] Sending confirmation email for appointment:', appointment.id);
+
+      // Get the SUPABASE_URL for the email function
+      const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+      const emailEndpoint = `${SUPABASE_URL}/functions/v1/send-confirmation-email`;
+      
+      // Prepare email data
+      const emailData = {
+        to: appointment.email,
+        patientName: appointment.patient_name,
+        appointmentDate: appointment.appointment_date,
+        appointmentTime: appointment.appointment_time,
+        doctorName: appointment.doctor?.name,
+        departmentName: appointment.department?.name,
+        clinicName: appointment.clinic?.name || 'MediZap AI Clinic',
+        appointmentId: appointment.id
+      };
+      
+      // Call the email function with the JWT token
+      fetch(emailEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwt}`
+        },
+        body: JSON.stringify(emailData)
+      })
+      .then(response => response.json())
+      .then(result => {
+        console.log('[INFO] Email function response:', result);
+      })
+      .catch(error => {
+        console.warn('[WARN] Failed to send confirmation email:', error);
+      });
+    }
+
     // Prepare response
     const response = {
       success: true,
@@ -253,7 +365,8 @@ Deno.serve(async (req: Request) => {
         appointmentDate: appointment.appointment_date,
         appointmentTime: appointment.appointment_time,
         status: appointment.status,
-        notes: appointment.notes
+        notes: appointment.notes,
+        emailSent: !!appointment.email // Indicate if an email should be sent
       },
       message: 'Appointment booked successfully',
       timestamp: new Date().toISOString()

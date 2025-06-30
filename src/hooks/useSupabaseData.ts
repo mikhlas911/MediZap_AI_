@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase, type Clinic, type Department, type Doctor, type Appointment } from '../lib/supabase';
 import { useClinicContext } from './useClinicContext';
+import { useAuth } from '../components/auth/AuthProvider';
 
 export function useClinics() {
   const [clinics, setClinics] = useState<Clinic[]>([]);
@@ -204,6 +205,7 @@ export function useDoctors(departmentId?: string) {
 
 export function useAppointments() {
   const { clinicId } = useClinicContext();
+  const { user } = useAuth();
   const [appointments, setAppointments] = useState<(Appointment & {
     doctor: Doctor;
     department: Department;
@@ -212,7 +214,7 @@ export function useAppointments() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!clinicId) {
+    if (!clinicId && !user) {
       setAppointments([]);
       setLoading(false);
       return;
@@ -220,14 +222,23 @@ export function useAppointments() {
 
     async function fetchAppointments() {
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('appointments')
           .select(`
             *,
             doctor:doctors(*),
             department:departments(*)
-          `)
-          .eq('clinic_id', clinicId)
+          `);
+
+        // If user is a clinic admin/staff, show clinic appointments
+        if (clinicId) {
+          query = query.eq('clinic_id', clinicId);
+        } else if (user) {
+          // If user is a patient, show only their appointments
+          query = query.eq('created_by', user.id);
+        }
+
+        const { data, error } = await query
           .order('appointment_date', { ascending: true })
           .order('appointment_time', { ascending: true });
 
@@ -256,7 +267,7 @@ export function useAppointments() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [clinicId]);
+  }, [clinicId, user]);
 
   return { appointments, loading, error };
 }

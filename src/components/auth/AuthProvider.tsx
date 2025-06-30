@@ -6,6 +6,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  getJwtToken: () => string | null;
   signUp: (email: string, password: string, userData: any) => Promise<any>;
   signIn: (email: string, password: string) => Promise<any>;
   signOut: () => Promise<void>;
@@ -66,11 +67,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.auth.resetPasswordForEmail(email);
     return { data, error };
   };
+  
+  const getJwtToken = () => {
+    return session?.access_token || null;
+  };
 
   const value = {
     user,
     session,
     loading,
+    getJwtToken,
     signUp,
     signIn,
     signOut,

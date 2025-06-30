@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Volume2, VolumeX, X } from 'lucide-react';
+import { useAuth } from '../auth/AuthProvider';
 
 interface AIVoiceOrbProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export function AIVoiceOrb({
   onAppointmentBooked,
   onWalkinRegistered
 }: AIVoiceOrbProps) {
+  const { session } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
@@ -95,6 +97,9 @@ export function AIVoiceOrb({
         clinicName: clinicName || 'Default Clinic',
         context: 'patient_booking',
         timestamp: new Date().toISOString(),
+        // JWT token for authentication
+        // JWT token for authentication
+        jwtToken: session?.access_token || null,
         
         // Required tool parameters for get-doctors function
         departmentId: null,
@@ -140,6 +145,23 @@ export function AIVoiceOrb({
       };
       
       console.log('[DEBUG] AIVoiceOrb - Setting dynamic variables:', dynamicVariables);
+      
+      // Add JWT token to the widget's headers if available
+      if (session?.access_token) {
+        widget.setAttribute('headers', JSON.stringify({
+          'Authorization': `Bearer ${session.access_token}`
+        }));
+        console.log('[DEBUG] Added JWT token to widget headers');
+      } else {
+        console.warn('[WARN] No JWT token available for authentication');
+      }
+      
+      // Add JWT token to the widget's headers
+      if (session?.access_token) {
+        widget.setAttribute('headers', JSON.stringify({
+          'Authorization': `Bearer ${session.access_token}`
+        }));
+      }
       
       widget.setAttribute('dynamic-variables', JSON.stringify(dynamicVariables));
       

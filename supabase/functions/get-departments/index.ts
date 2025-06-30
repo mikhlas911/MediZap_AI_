@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-elevenlabs-secret',
+  'Access-Control-Allow-Headers': 'x-client-info, apikey, content-type, authorization',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
@@ -33,59 +33,28 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Only allow GET and POST
-  if (req.method !== 'GET' && req.method !== 'POST') {
+  // --- JWT Authentication ---
+  // Get the Authorization header
+  const authHeader = req.headers.get('authorization');
+  
+  // Check if Authorization header exists and starts with 'Bearer '
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('[ERROR] Missing or invalid Authorization header');
     return new Response(
-      JSON.stringify({ success: false, error: 'Method Not Allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({
+        success: false,
+        error: 'Unauthorized',
+        message: 'Missing or invalid Authorization header'
+      }),
+      {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
     );
   }
-
-  // --- Custom Secret Authentication ---
-  const ELEVENLABS_FUNCTION_SECRET = Deno.env.get('ELEVENLABS_FUNCTION_SECRET');
-  const providedSecret = req.headers.get('x-elevenlabs-secret');
   
-  console.log('[DEBUG] Authentication check:', {
-    hasSecret: !!ELEVENLABS_FUNCTION_SECRET,
-    hasProvidedSecret: !!providedSecret,
-    secretsMatch: ELEVENLABS_FUNCTION_SECRET && providedSecret && ELEVENLABS_FUNCTION_SECRET === providedSecret,
-    timestamp: new Date().toISOString()
-  });
-
-  // Check if secret is configured and provided
-  if (ELEVENLABS_FUNCTION_SECRET) {
-    if (!providedSecret) {
-      console.log('[ERROR] Missing X-Elevenlabs-Secret header');
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Unauthorized',
-          message: 'Missing X-Elevenlabs-Secret header'
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    if (providedSecret !== ELEVENLABS_FUNCTION_SECRET) {
-      console.log('[ERROR] Invalid X-Elevenlabs-Secret header');
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Unauthorized',
-          message: 'Invalid X-Elevenlabs-Secret header'
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-  } else {
-    console.log('[WARN] ELEVENLABS_FUNCTION_SECRET not configured - allowing all requests');
-  }
+  // Extract the JWT token
+  const jwt = authHeader.replace('Bearer ', '');
 
   // --- Environment Variables Check ---
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -196,15 +165,14 @@ Deno.serve(async (req: Request) => {
 
     console.log('[DEBUG] Fetch Departments - Query response:', {
       departmentsCount: departments?.length || 0,
+      error,
       totalCount: count,
-      error: error?.message || null,
       timestamp: new Date().toISOString()
     });
 
     if (error) {
       console.error('[ERROR] Fetch Departments - Database error:', {
         error: error.message,
-        code: error.code,
         details: error.details,
         hint: error.hint,
         timestamp: new Date().toISOString()
@@ -213,9 +181,9 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Database query failed',
+          error: 'Database error',
           message: error.message,
-          code: error.code
+          timestamp: new Date().toISOString()
         }),
         {
           status: 500,
@@ -224,20 +192,14 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Prepare response
     const response = {
       success: true,
-      data: departments || [],
+      data: departments,
       meta: {
-        total: count || (departments?.length || 0),
-        count: departments?.length || 0,
-        limit: requestData.limit || null,
-        offset: requestData.offset || 0,
-        hasMore: requestData.limit ? (requestData.offset || 0) + (departments?.length || 0) < (count || 0) : false
-      },
-      filters: {
-        clinicId: requestData.clinicId || null,
-        isActive: requestData.isActive !== undefined ? requestData.isActive : null
+        total: count,
+        returned: departments?.length || 0,
+        limit: requestData.limit,
+        offset: requestData.offset
       },
       timestamp: new Date().toISOString()
     };

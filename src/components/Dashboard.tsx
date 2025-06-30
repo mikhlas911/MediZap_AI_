@@ -202,6 +202,13 @@ export function Dashboard() {
               View Call Center
             </button>
             <button 
+              onClick={() => window.open('/jwt-debug', '_self')}
+              className="w-full flex items-center justify-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+            >
+              <span className="h-4 w-4 mr-2 text-xs font-bold">JWT</span>
+              JWT Debug Tool
+            </button>
+            <button 
               onClick={() => window.open('/appointments', '_self')}
               className="w-full flex items-center justify-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
             >

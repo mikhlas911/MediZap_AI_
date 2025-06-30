@@ -8,6 +8,7 @@ import { Dashboard } from './components/Dashboard';
 import { AppointmentsPage } from './pages/AppointmentsPage';
 import { DoctorsPage } from './pages/DoctorsPage';
 import { CallCenterPage } from './pages/CallCenterPage';
+import { JWTDebugPage } from './pages/JWTDebugPage';
 import { WalkInsPage } from './pages/WalkInsPage';
 import { PatientBookingPage } from './pages/PatientBookingPage';
 import { PatientDashboardPage } from './pages/PatientDashboardPage';
@@ -267,6 +268,7 @@ function AppContent() {
                         <Route path="/appointments" element={<Layout><AppointmentsPage /></Layout>} />
                         <Route path="/doctors" element={<Layout><DoctorsPage /></Layout>} />
                         <Route path="/calls" element={<Layout><CallCenterPage /></Layout>} />
+                        <Route path="/jwt-debug" element={<Layout><JWTDebugPage /></Layout>} />
                         <Route path="/walkins" element={<Layout><WalkInsPage /></Layout>} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                       </>

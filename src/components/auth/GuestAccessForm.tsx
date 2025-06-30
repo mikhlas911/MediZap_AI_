@@ -55,7 +55,7 @@ export function GuestAccessForm({ onSwitchToLogin }: GuestAccessFormProps) {
         <p className="text-slate-600">Book appointments without creating an account</p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-lg border border-slate-200 relative">
         {/* Header */}
         <div className="bg-gradient-to-r from-emerald-50 to-sky-50 p-6 border-b border-slate-200">
           <div className="flex items-center space-x-4">

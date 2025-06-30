@@ -1,0 +1,6 @@
+ Here's a summary of our conversation from the beginning of this session:
+
+MediZap AI Project Overview: We started by outlining the MediZap AI project, detailing its core features such as appointment and walk-in management, multi-clinic support, user management (including guest auto-registration), and the AI voice agent. We also covered its tech stack (React.js, Supabase, ElevenLabs, OpenAI Whisper, Twilio) and typical workflow.
+Supabase JWT Token and Authentication: You inquired about obtaining a Supabase JWT token and sought clarification on whether an access token is the same as a JWT secret. We discussed the credentials used for authentication, specifically user@example.com and your_password, and their relation to user accounts.
+API Error Troubleshooting: You presented an API error response (invalid_credentials, unsupported_grant_type), indicating an issue with an authentication attempt.
+Autonomous Email Confirmation: Most recently, we discussed the implementation of autonomous email sending after appointment bookings. This feature leverages Supabase Edge Functions (book-appointment and send-confirmation-email) and the Resend API to send confirmation emails to patients. We covered the necessary environment variables (ELEVENLABS_FUNCTION_SECRET, RESEND_API_KEY) required for this functionality.

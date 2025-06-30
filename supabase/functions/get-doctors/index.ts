@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-elevenlabs-secret',
+  'Access-Control-Allow-Headers': 'x-client-info, apikey, content-type, authorization',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
@@ -27,23 +27,9 @@ interface Doctor {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  department?: {
-    id: string;
-    name: string;
-    description?: string;
-  };
-  clinic?: {
-    id: string;
-    name: string;
-  };
 }
 
-Deno.serve(async (req: Request) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+Deno.serve(async (req) => {
   // Only allow GET and POST
   if (req.method !== 'GET' && req.method !== 'POST') {
     return new Response(
@@ -52,58 +38,35 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  // --- Custom Secret Authentication ---
-  const ELEVENLABS_FUNCTION_SECRET = Deno.env.get('ELEVENLABS_FUNCTION_SECRET');
-  const providedSecret = req.headers.get('x-elevenlabs-secret');
+  // --- JWT Authentication ---
+  // Get the Authorization header
+  const authHeader = req.headers.get('authorization');
   
-  console.log('[DEBUG] Authentication check:', {
-    hasSecret: !!ELEVENLABS_FUNCTION_SECRET,
-    hasProvidedSecret: !!providedSecret,
-    secretsMatch: ELEVENLABS_FUNCTION_SECRET && providedSecret && ELEVENLABS_FUNCTION_SECRET === providedSecret,
-    timestamp: new Date().toISOString()
-  });
-
-  // Check if secret is configured and provided
-  if (ELEVENLABS_FUNCTION_SECRET) {
-    if (!providedSecret) {
-      console.log('[ERROR] Missing X-Elevenlabs-Secret header');
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Unauthorized',
-          message: 'Missing X-Elevenlabs-Secret header'
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    if (providedSecret !== ELEVENLABS_FUNCTION_SECRET) {
-      console.log('[ERROR] Invalid X-Elevenlabs-Secret header');
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Unauthorized',
-          message: 'Invalid X-Elevenlabs-Secret header'
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-  } else {
-    console.log('[WARN] ELEVENLABS_FUNCTION_SECRET not configured - allowing all requests');
+  // Check if Authorization header exists and starts with 'Bearer '
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('[ERROR] Missing or invalid Authorization header');
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Unauthorized',
+        message: 'Missing or invalid Authorization header'
+      }),
+      {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
+  
+  // Extract the JWT token
+  const jwt = authHeader.replace('Bearer ', '');
 
   console.log('[DEBUG] get-doctors function called:', {
     method: req.method,
     timestamp: new Date().toISOString(),
     userAgent: req.headers.get('user-agent'),
     origin: req.headers.get('origin'),
-    authenticated: true
+    authenticated: !!jwt
   });
 
   // --- Environment Variables Check ---

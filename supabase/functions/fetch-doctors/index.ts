@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
@@ -45,21 +45,7 @@ Deno.serve(async (req: Request) => {
   }
 
   // --- Authorization Header Check ---
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: 'Unauthorized',
-        message: 'Missing or invalid Authorization header'
-      }),
-      {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
-  }
-  // --- End Authorization Header Check ---
+  // Authorization header check removed
 
   try {
     console.log('[DEBUG] Fetch Doctors - Request received:', {
