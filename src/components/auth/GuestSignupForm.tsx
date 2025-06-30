@@ -94,7 +94,7 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
       const { data: authData, error: authError } = await signUp(
         `${formData.phone}@medizap.local`, // Use phone as email for authentication
         formData.password,
-        {
+        {  
           first_name: firstName,
           last_name: lastName,
           full_name: formData.fullName,
@@ -135,13 +135,11 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
           <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="h-8 w-8 text-emerald-600" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">
-            {formData.isGuestConversion ? 'Account Created Successfully!' : 'Welcome to MediZap AI!'}
-          </h2>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">Patient Account Created!</h2>
           <p className="text-slate-600 mb-6">
             {formData.isGuestConversion 
               ? 'Your guest booking has been converted to a full account. You can now access all features.'
-              : 'Your patient account has been created. Please check your email to verify your account.'
+              : 'Your patient account has been created successfully. You can now sign in using your phone number and password.'
             }
           </p>
           <button
@@ -157,7 +155,7 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <div className="text-center mb-8">
+      <div className="text-center mb-8 bg-white bg-opacity-90 p-6 rounded-xl shadow-lg">
         <div className="flex items-center justify-center space-x-3 mb-4">
           <img 
             src="/logo_symbol.png" 
@@ -177,7 +175,7 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-8 border border-slate-200">
+      <form onSubmit={handleSubmit} className="bg-white bg-opacity-95 rounded-xl shadow-lg p-8 border border-slate-200">
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center space-x-3 mb-6">
             <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
@@ -189,8 +187,11 @@ export function GuestSignupForm({ onSwitchToLogin, guestData, onGuestRegistered 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center space-x-3 mb-6">
             <UserPlus className="h-5 w-5 text-blue-500 flex-shrink-0" />
             <div className="text-sm text-blue-700">
-              <p className="font-medium">Guest Conversion</p>
-              <p>Complete your registration to access all features</p>
+              <p className="font-medium">{formData.isGuestConversion ? 'Guest Conversion' : 'Patient Registration'}</p>
+              <p>{formData.isGuestConversion 
+                ? 'Complete your registration to access all features' 
+                : 'Create your patient account to book appointments easily'
+              }</p>
             </div>
           </div>
         )}

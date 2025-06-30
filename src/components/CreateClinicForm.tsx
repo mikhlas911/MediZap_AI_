@@ -49,7 +49,7 @@ export function CreateClinicForm({ userId, onClinicCreated, onCancel }: CreateCl
     try {
       // Use the secure function to create clinic with all related data
       const { data, error: functionError } = await supabase.rpc('create_clinic_with_admin', {
-        clinic_name: formData.name,
+        clinic_name: formData.name, // This will be used for both name and clinicname columns
         clinic_email: formData.email,
         clinic_phone: formData.phone || null,
         clinic_address: formData.address || null,
@@ -110,7 +110,7 @@ export function CreateClinicForm({ userId, onClinicCreated, onCancel }: CreateCl
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="text-center mb-8">
+      <div className="text-center mb-8 bg-white bg-opacity-90 p-6 rounded-xl shadow-lg">
         <div className="flex items-center justify-center space-x-3 mb-4">
           <img 
             src="/logo_symbol.png" 
@@ -122,7 +122,7 @@ export function CreateClinicForm({ userId, onClinicCreated, onCancel }: CreateCl
         <p className="text-slate-600">Set up your clinic to start using MediZap AI</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-slate-50 rounded-xl shadow-lg p-8 border border-slate-200">
+      <form onSubmit={handleSubmit} className="bg-white bg-opacity-95 rounded-xl shadow-lg p-8 border border-slate-200">
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3 mb-6">
             <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />

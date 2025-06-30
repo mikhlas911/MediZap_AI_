@@ -58,7 +58,7 @@ export function LoginForm({ onSwitchToRegister, onSwitchToGuestAccess, onSwitchT
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <div className="text-center mb-8">
+      <div className="text-center mb-8 bg-white bg-opacity-90 p-6 rounded-xl shadow-lg">
         <div className="flex items-center justify-center space-x-3 mb-4">
           <img 
             src="/logo_symbol.png" 
@@ -71,7 +71,7 @@ export function LoginForm({ onSwitchToRegister, onSwitchToGuestAccess, onSwitchT
         <p className="text-slate-600">Sign in to your account</p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg p-8 border border-slate-200">
+      <div className="bg-white bg-opacity-95 rounded-xl shadow-lg p-8 border border-slate-200">
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -166,7 +166,7 @@ export function LoginForm({ onSwitchToRegister, onSwitchToGuestAccess, onSwitchT
             </button>
             
             <div className="border-t border-slate-200 pt-4">
-              <div className="text-sm text-slate-600 space-y-3">
+              <div className="text-sm text-slate-700 space-y-3">
                 <div className="bg-gradient-to-r from-sky-50 to-emerald-50 rounded-lg p-4 border border-sky-200">
                   <h4 className="font-medium text-slate-800 mb-3">New to MediZap AI?</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

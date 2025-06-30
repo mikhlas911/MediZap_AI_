@@ -1,0 +1,16 @@
+/* Particle Background Container */
+.particles-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  background: linear-gradient(to bottom, #d0e7ff, #b8e0ff);
+}
+
+/* Ensure content appears above particles */
+.particles-container {
+  position: relative;
+  min-height: 100vh;
+}

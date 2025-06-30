@@ -15,7 +15,7 @@ export function PatientLoginForm({
 }: PatientLoginFormProps) {
   const { signIn } = useAuth();
   const [formData, setFormData] = useState({
-    email: '',
+    identifier: '',
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -28,7 +28,15 @@ export function PatientLoginForm({
     setError(null);
 
     try {
-      const { error } = await signIn(formData.email, formData.password);
+      // Check if the identifier is a phone number
+      const isPhoneNumber = /^[\+]?[1-9][\d]{0,15}$/.test(formData.identifier.replace(/\s/g, ''));
+      
+      // If it's a phone number, convert to the email format used internally
+      const loginEmail = isPhoneNumber 
+        ? `${formData.identifier.replace(/\s/g, '')}@medizap.local` 
+        : formData.identifier;
+      
+      const { error } = await signIn(loginEmail, formData.password);
       if (error) throw error;
     } catch (err: any) {
       // Provide more helpful error messages
@@ -61,7 +69,7 @@ export function PatientLoginForm({
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <div className="text-center mb-8">
+      <div className="text-center mb-8 bg-white bg-opacity-90 p-6 rounded-xl shadow-lg">
         <div className="flex items-center justify-center space-x-3 mb-4">
           <img 
             src="/logo_symbol.png" 
@@ -74,17 +82,17 @@ export function PatientLoginForm({
         <p className="text-slate-600">Sign in to your patient account</p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg p-8 border border-slate-200">
+      <div className="bg-white bg-opacity-95 rounded-xl shadow-lg p-8 border border-slate-200">
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <div className="flex items-start space-x-3">
-                <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-1" />
                 <div className="flex-1">
                   <p className="text-sm text-red-700 mb-2">{error}</p>
                   {error.includes('email or password you entered is incorrect') && (
                     <div className="text-xs text-red-600 space-y-1">
-                      <p>• Make sure your email address is spelled correctly</p>
+                      <p>• Make sure your phone number or email is entered correctly</p>
                       <p>• Check that Caps Lock is not enabled</p>
                       <p>• Try creating a new account if you don't have one</p>
                     </div>
@@ -95,22 +103,22 @@ export function PatientLoginForm({
           )}
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
-              Email Address
+            <label htmlFor="identifier" className="block text-sm font-medium text-slate-700 mb-2">
+              Phone Number or Email
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Mail className="h-5 w-5 text-slate-400" />
               </div>
               <input
-                id="email"
-                name="email"
-                type="email"
+                id="identifier"
+                name="identifier"
+                type="text"
                 required
-                value={formData.email}
+                value={formData.identifier}
                 onChange={handleChange}
                 className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors bg-white"
-                placeholder="Enter your email"
+                placeholder="Enter your phone number or email"
               />
             </div>
           </div>
