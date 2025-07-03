@@ -293,7 +293,6 @@ For support and questions:
 - [x] Mobile-optimized registration forms
 - [x] Real-time walk-in dashboard
 - [x] Bulk QR code management
-- [ ] SMS notifications for walk-in status updates
 - [ ] Integration with appointment scheduling
 - [ ] Advanced analytics for walk-in patterns
 - [ ] Multi-language support for registration forms
